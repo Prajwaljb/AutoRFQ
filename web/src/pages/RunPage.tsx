@@ -101,6 +101,20 @@ export function RunPage() {
     }
   }
 
+  async function substitute(requested: string, alternative: string) {
+    const name = reviewer || askReviewer();
+    if (!name) return;
+    if (!window.confirm(`Replace ${requested} with Ferguson item ${alternative} on this RFQ? The reply asks the customer to confirm.`)) return;
+    try {
+      await api.substitute(id, requested, alternative, name);
+      toast(`${requested} replaced by ${alternative}.`);
+      setOpen(null);
+      load();
+    } catch (e) {
+      toast(String((e as Error).message), "danger");
+    }
+  }
+
   async function sendNow() {
     setBusy(true);
     try {
@@ -332,7 +346,12 @@ export function RunPage() {
         </Card>
       )}
 
-      <SourceSheet item={open} flags={open ? flagsByItem[open.product_id] ?? [] : []} onClose={() => setOpen(null)} />
+      <SourceSheet
+        item={open}
+        flags={open ? flagsByItem[open.product_id] ?? [] : []}
+        onClose={() => setOpen(null)}
+        onSubstitute={status === "ready" || status === "needs_review" ? substitute : undefined}
+      />
 
       <Dialog open={confirm} onClose={() => setConfirm(false)} title="Approve and send?"
         footer={<>

@@ -70,3 +70,16 @@ def test_approve_rebuilds_without_marks(held):
     assert "Quality check: checked by our team." in msg.get_body(("plain",)).get_content()
     with pytest.raises(state.ReviewError):
         state.finalise(held, "Asha")  # already approved
+
+
+def test_substitute_a_not_found_item(tmp_path):
+    result, folder = pipeline.run(EMAILS / "email-4-messy-forward.eml", tmp_path, mode="offline")
+    with pytest.raises(state.ReviewError):
+        state.substitute(folder, "9677533", "5106926", "Asha")  # already on the RFQ
+    state.substitute(folder, "9677533", "9677539", "Asha")
+    rows = {r[0]: r for r in sheet_rows(folder / "RFQ.xlsx", "RFQ")}
+    assert "9677533" not in rows and rows["9677539"][-1] == "Found"
+    notes = [r[1] for r in sheet_rows(folder / "RFQ.xlsx", "Notes") if r[0] == "9677539"]
+    assert any("Requested 9677533; replaced by Ferguson item 9677539 by Asha" in n for n in notes)
+    msg = email.message_from_bytes((folder / "reply.eml").read_bytes(), policy=email.policy.default)
+    assert "9677533 (9677539); please confirm" in msg.get_body(("plain",)).get_content()

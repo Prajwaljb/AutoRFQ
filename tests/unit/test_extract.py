@@ -103,3 +103,24 @@ def test_item_cap(tmp_path):
     assert len(result.items) == 300
     assert any("not processed" in n.text for n in result.notes)
     assert all(i.kind == FERGUSON for i in result.items)
+
+
+def test_reply_reads_its_own_words_not_the_quote(tmp_path):
+    body = ("use 9677539 instead please\n\nOn Thu, 15 Oct 2026 at 10:00, RFQ Agent <bot@example.com> wrote:\n"
+            "> Closest Ferguson match: 9677539. Also similar: 5106914, 5106918.\n> 5106926\n")
+    assert [i.product_id for i in extract(make_email(tmp_path / "r.eml", body=body)).items] == ["9677539"]
+    only_quote = "Please quote these.\n\nOn Thu, 15 Oct 2026, Priya <p@example.com> wrote:\n> 5106912\n> 5106935\n"
+    assert [i.product_id for i in extract(make_email(tmp_path / "q.eml", body=only_quote)).items] == \
+        ["5106912", "5106935"]
+
+
+def test_alternatives_for_not_found_items():
+    from rfq.models import Item
+    from rfq.sources.alternatives import Alternatives
+    from rfq.sources.catalog import CatalogSource
+    alt = Alternatives(CatalogSource())
+    first = lambda pid, line="": [o["product_id"] for o in alt.suggest(Item(0, pid, kind="code", line=line))[2]][:1]
+    assert first("225123") == ["5106912"]            # old listing: 6 in blue water detectable tape
+    assert first("9677533") == ["9677539"]           # old listing: red marking tape
+    assert first("17774-79-3000", "the Mutual detectable electric tape, part 17774-79-3000") == ["5106914"]
+    assert first("31-024", "Empire 31-024") == []    # nothing known about it: no guess

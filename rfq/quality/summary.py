@@ -129,6 +129,19 @@ def add_sheet(wb, result):
     ws.cell(row=row, column=1, value="Alerts").font = SECTION
     row = _table(ws, row + 1, ["Item", "Alert"], alerts(result) or [("", "None")])
 
+    alt_rows = []
+    for item in result.items:
+        if item.found:
+            continue
+        for o in item.extra.get("alternatives") or []:
+            alt_rows.append((item.product_id, o["product_id"], o["description"], ", ".join(o["matched"]),
+                             _money(o.get("price", "")), o.get("availability", "")))
+    if alt_rows:
+        ws.cell(row=row, column=1,
+                value="Suggested Ferguson alternatives (not on the RFQ until the customer confirms)").font = SECTION
+        row = _table(ws, row + 1, ["Requested", "Ferguson item", "Description", "Matches", "Unit price (USD)",
+                                   "Availability"], alt_rows)
+
     ws.cell(row=row, column=1, value="Flags").font = SECTION
     flag_rows = [(f.product_id, f.column, f.value, f.issue, f.rule, f.severity,
                   "resolved" if f.resolved else "open") for f in result.flags if f.severity != "info"]

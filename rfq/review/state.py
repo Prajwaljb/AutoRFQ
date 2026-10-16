@@ -161,3 +161,44 @@ def set_status(run_dir, status):
         run = load_run(run_dir)
         run["status"] = status if isinstance(status, str) else status.value
         write_text_atomic(Path(run_dir) / "run.json", json.dumps(run, indent=2, ensure_ascii=False))
+
+
+def substitute(run_dir, requested, alternative, reviewer):
+    """Replaces a Not found item with a suggested (or any catalog) Ferguson item: a human decision.
+
+    The row takes the Ferguson item's catalog values and sources; a Note records what was requested and
+    who replaced it, and the reply asks the customer to confirm. Allowed before approval only.
+    """
+    from rfq import pipeline
+    from rfq import quality as quality_agent
+    from rfq.quality import rules, units
+    from rfq.sources.catalog import CatalogSource
+    if not (reviewer or "").strip():
+        raise ReviewError("A reviewer name is required.")
+    with _lock:
+        run = load_run(run_dir)
+        if run.get("status") not in ("ready", "needs_review"):
+            raise ReviewError(f"This RFQ is already {run.get('status')}.")
+        result = RunResult.from_dict(run)
+        item = next((i for i in result.items if i.product_id == requested and not i.found), None)
+        if item is None:
+            raise ReviewError(f"No Not found item {requested!r} on this RFQ.")
+        if any(i.product_id == alternative for i in result.items):
+            raise ReviewError(f"{alternative} is already on this RFQ.")
+        catalog = CatalogSource()
+        cells = catalog.lookup(alternative)
+        if not cells:
+            raise ReviewError(f"{alternative} is not in the catalog.")
+        item.product_id, item.kind, item.cells = alternative, "ferguson", cells
+        item.extra = {**catalog.extra(alternative), "replaces": requested}
+        item.lookup_status, item.found_via, item.reason = "Found", "catalog", ""
+        result.add_note(item, "quality", f"Requested {requested}; replaced by Ferguson item {alternative} by "
+                                         f"{reviewer.strip()} ({_now()}). The customer is asked to confirm.")
+        if result.quality_ran:
+            result.units_converted += units.normalise(item, result)
+            keep = [f for f in result.flags if f.product_id != requested]
+            result.flags = keep + [f for f in rules.check_item(item)]
+            result.status = quality_agent.status_of(result)
+        pipeline.write_outputs(result, run_dir)
+        return result
+

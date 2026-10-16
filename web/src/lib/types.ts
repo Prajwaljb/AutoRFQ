@@ -46,7 +46,16 @@ export interface Item {
   reason: string;
   description: string;
   cells: Record<string, Cell>;
-  extra: Record<string, string>;
+  extra: Record<string, string> & { alternatives?: Alternative[]; described_as?: string; described_from?: string; replaces?: string };
+}
+
+export interface Alternative {
+  product_id: string;
+  description: string;
+  score: number;
+  matched: string[];
+  price: string;
+  availability: string;
 }
 
 export interface Note {

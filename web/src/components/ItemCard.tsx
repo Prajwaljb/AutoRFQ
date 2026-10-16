@@ -29,6 +29,9 @@ export function ItemCard({ item, flags, onOpen }: { item: Item; flags: number; o
           {found ? (
             <>
               <p className="line-clamp-2 min-h-10 text-sm">{item.description || item.cells?.Description?.value}</p>
+              {item.extra?.replaces && (
+                <p className="text-xs text-warning">Replaces requested {item.extra.replaces} (customer to confirm)</p>
+              )}
               <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-muted">
                 <Badge tone="info">{VIA[item.found_via] ?? "Catalog"}</Badge>
                 <span className="tabular">{price ? money(price) : "Price on request"}</span>
@@ -50,9 +53,16 @@ export function ItemCard({ item, flags, onOpen }: { item: Item; flags: number; o
           ) : (
             <>
               <p className="text-sm text-muted">{item.reason || "Not found in any source."}</p>
-              <p className="mt-auto text-xs text-muted">
-                {item.kind === "code" ? "Next step: ask for the Ferguson item number or suggest an equivalent." : "Next step: check the number with the customer."}
-              </p>
+              {item.extra?.alternatives?.length ? (
+                <p className="mt-auto rounded-md bg-info-bg px-2 py-1.5 text-xs text-info">
+                  Closest Ferguson match: <span className="font-mono font-semibold">{item.extra.alternatives[0].product_id}</span>{" "}
+                  {item.extra.alternatives[0].description}
+                </p>
+              ) : (
+                <p className="mt-auto text-xs text-muted">
+                  {item.kind === "code" ? "Next step: ask the customer for the size and colour, or the Ferguson item number." : "Next step: check the number with the customer."}
+                </p>
+              )}
             </>
           )}
         </div>

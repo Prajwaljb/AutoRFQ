@@ -18,6 +18,7 @@ from rfq.output import style, workbook
 from rfq import quality as quality_agent
 from rfq.quality import summary
 from rfq.sources import merge
+from rfq.sources.alternatives import Alternatives
 from rfq.sources.base import SourceUnavailable
 from rfq.sources.catalog import CatalogSource
 from rfq.sources.ferguson_live import LiveSource, chrome_available
@@ -41,6 +42,30 @@ def _not_found_reason(item, mode, catalog):
         options = near[0] if len(near) == 1 else f"{', '.join(near[:-1])} or {near[-1]}"
         reason += f" Did you mean {options}?"
     return reason
+
+
+def suggest_alternatives(result, catalog, mode, logger=None, events=None):
+    """Closest Ferguson products for every Not found item. Suggestions only: the RFQ row stays Not found."""
+    finder = Alternatives(catalog, web=mode != config.OFFLINE, logger=logger)
+    for item in result.items:
+        if item.found:
+            continue
+        text, origin, options = finder.suggest(item)
+        if text:
+            item.extra["described_as"], item.extra["described_from"] = text, origin
+        if origin.startswith("Ferguson's earlier listing"):
+            item.reason = f"Item {item.product_id} ({text}) is no longer listed by Ferguson."
+            result.add_note(item, "lookup", f"Ferguson listed this item earlier as \"{text}\"; it is no longer listed.")
+        elif item.kind == CODE and not text:
+            item.reason += " The request gives no size or colour for it."
+        if not options:
+            continue
+        item.extra["alternatives"] = options
+        listed = "; ".join(f"{o['product_id']} ({o['description']}; matches {', '.join(o['matched'])})"
+                           for o in options)
+        result.add_note(item, "lookup", f"Possible Ferguson alternatives, not added to the RFQ: {listed}.")
+        if events is not None:
+            events.emit("alternatives", product_id=item.product_id, options=[o["product_id"] for o in options])
 
 
 def _warn(result, logger, text):
@@ -207,6 +232,7 @@ def run(eml_path, out_root, mode=config.OFFLINE, quality=True, on_event=None, cd
         logger.info("items: %d", len(result.items))
 
         _lookup(result, mode, catalog, logger, events, cdp, Path(out_root) / ".cache", replay, keep_browser)
+        suggest_alternatives(result, catalog, config.OFFLINE if replay else result.mode, logger, events)
 
         if quality:
             quality_agent.run(result, logger, events)

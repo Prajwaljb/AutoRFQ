@@ -1,4 +1,6 @@
 """Stage 1: the ordered, de-duplicated list of requested items."""
+import re
+
 from rfq.config import MAX_ITEMS
 from rfq.extract.attachments import read_attachment
 from rfq.extract.mail import read_email
@@ -8,10 +10,24 @@ from rfq.models import CODE, Item
 __all__ = ["read_email", "extract_items"]
 
 
+QUOTE_HEADER_RE = re.compile(r"^\s*On .{4,200}wrote:\s*$", re.MULTILINE)
+
+
+def without_quoted_reply(text):
+    """A reply's own text: drops "> " quoted lines and everything after "On <date>, <name> wrote:".
+    Forwarded messages ("---------- Forwarded message") are kept: they carry the request."""
+    m = QUOTE_HEADER_RE.search(text)
+    if m:
+        text = text[:m.start()]
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(">"))
+
+
 def _candidates(data, result):
     """(value, kind, line, brand, qty) in reading order: text parts, then attachments."""
     for _, text in data.texts:
-        for hit in find_items(text):
+        # A reply's own words win ("use 9677539" above our quoted RFQ); if they hold no item, the request
+        # is in the quoted part (a customer replying "please quote these"), so read everything.
+        for hit in find_items(without_quoted_reply(text)) or find_items(text):
             yield hit
     for name, payload in data.attachments:
         values, problems = read_attachment(name, payload)

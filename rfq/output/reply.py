@@ -87,15 +87,29 @@ def _html_table(rows):
             f"<tr>{th}</tr>{''.join(body)}</table>")
 
 
+def _price_text(option):
+    try:
+        return f", ${float(option['price']):,.2f}"
+    except (KeyError, ValueError):
+        return ""
+
+
 def _unmatched(result):
-    """(item, reason, next step) for every Not found item."""
+    """(item, reason, next step) for every Not found item. Alternatives are offered, never added."""
     out = []
     for item in result.items:
         if item.found:
             continue
         reason = item.reason or "We could not find this item number."
-        if item.kind == CODE:
-            step = "Reply with the Ferguson item number, or ask us to suggest an equivalent."
+        options = item.extra.get("alternatives") or []
+        if options:
+            best = options[0]
+            step = (f"Closest Ferguson match: {best['product_id']} ({best['description']}{_price_text(best)}). "
+                    f"Reply \"use {best['product_id']}\" to add it, or send the item number you need.")
+            if len(options) > 1:
+                step += f" Also similar: {', '.join(o['product_id'] for o in options[1:])}."
+        elif item.kind == CODE:
+            step = "Reply with the Ferguson item number, or the size and colour, and we will find an equivalent."
         else:
             step = "Please check the number, or reply with the Ferguson item number."
         out.append((item, reason, step))
@@ -139,6 +153,10 @@ def build(result, xlsx_path, original=None):
     if capped:
         summary += f" Your list was longer than {config.MAX_ITEMS} items; the rest are listed in the Notes sheet."
 
+    swaps = [i for i in result.items if i.found and i.extra.get("replaces")]
+    if swaps:
+        summary += " We suggested Ferguson equivalents for " + ", ".join(
+            f"{i.extra['replaces']} ({i.product_id})" for i in swaps) + "; please confirm they suit you."
     rows = _rows(result)
     unmatched = _unmatched(result)
     quality = _quality(result)

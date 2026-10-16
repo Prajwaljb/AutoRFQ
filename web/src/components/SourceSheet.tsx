@@ -5,6 +5,7 @@ import { screenshotUrl } from "../lib/api";
 import { severityTone } from "../lib/status";
 import { LookupBadge } from "./StatusBadge";
 import { Badge, Sheet } from "./ui/primitives";
+import { Button } from "./ui/button";
 
 const COLUMNS = ["Description", "ANSI", "Application", "Color Finish", "Length", "Lettering", "Material",
   "Material Type", "No of Tools", "Temperature Range", "Thickness", "Tool Type", "UL Listed", "Width", "OSHA",
@@ -17,7 +18,17 @@ function snippet(source: string): string | null {
   return m ? `Page ${m[1]}: “${m[2]}”` : null;
 }
 
-export function SourceSheet({ item, flags, onClose }: { item: Item | null; flags: Flag[]; onClose: () => void }) {
+export function SourceSheet({
+  item,
+  flags,
+  onClose,
+  onSubstitute,
+}: {
+  item: Item | null;
+  flags: Flag[];
+  onClose: () => void;
+  onSubstitute?: (requested: string, alternative: string) => void;
+}) {
   if (!item) return null;
   const found = item.lookup_status === "Found";
   return (
@@ -89,7 +100,42 @@ export function SourceSheet({ item, flags, onClose }: { item: Item | null; flags
           })}
         </ul>
       ) : (
-        <p className="text-sm text-muted">Blank means unknown: nothing is guessed for an item we could not find.</p>
+        <div className="space-y-3 text-sm">
+          <p className="text-muted">Blank means unknown: nothing is guessed for an item we could not find.</p>
+          {item.extra?.described_as && (
+            <p>
+              <span className="text-muted">Described as:</span> “{item.extra.described_as}”{" "}
+              <span className="text-xs text-muted">({item.extra.described_from})</span>
+            </p>
+          )}
+          {item.extra?.alternatives?.length ? (
+            <div>
+              <h3 className="mb-2 font-semibold">Suggested Ferguson alternatives</h3>
+              <ul className="space-y-2">
+                {item.extra.alternatives.map((alt) => (
+                  <li key={alt.product_id} className="rounded-md border border-border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="font-mono font-semibold">{alt.product_id}</span> {alt.description}
+                        <p className="mt-1 text-xs text-muted">
+                          Matches {alt.matched.join(", ")} · {money(alt.price) || "price on request"} · {availability(alt.availability)}
+                        </p>
+                      </div>
+                      {onSubstitute && (
+                        <Button size="sm" className="shrink-0 whitespace-nowrap" onClick={() => onSubstitute(item.product_id, alt.product_id)}>
+                          Use instead
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-muted">Not added unless you choose one. The reply asks the customer to confirm a replacement.</p>
+            </div>
+          ) : (
+            <p className="text-muted">No close Ferguson alternative: the request doesn't say enough about this item (size, colour, utility).</p>
+          )}
+        </div>
       )}
     </Sheet>
   );

@@ -20,6 +20,12 @@ class Undo(BaseModel):
     version: int | None = None
 
 
+class Substitute(BaseModel):
+    requested: str = Field(min_length=1, max_length=60)
+    alternative: str = Field(pattern=r"^\d{5,7}$")
+    reviewer: str = Field(min_length=1, max_length=80)
+
+
 class Approve(BaseModel):
     reviewer: str = Field(min_length=1, max_length=80)
     send: bool = False
@@ -54,6 +60,17 @@ def undo(run_id: str, body: Undo):
     except state.ReviewError as e:
         raise HTTPException(400, str(e))
     return state.view(folder)
+
+
+@router.post("/substitute")
+def substitute(run_id: str, body: Substitute):
+    """Replaces a Not found item with a Ferguson item (a reviewer's decision; the customer confirms)."""
+    folder = _dir(run_id)
+    try:
+        state.substitute(folder, body.requested, body.alternative, body.reviewer)
+    except state.ReviewError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
 
 
 @router.post("/approve")
