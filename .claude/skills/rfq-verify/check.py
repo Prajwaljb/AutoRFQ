@@ -1,11 +1,16 @@
 """Checks built RFQs against spec.md "Done when".
 
-Usage: python .claude/skills/rfq-verify/check.py [--out out] [--live]
-Reads out/<email name>/RFQ.xlsx and reply.eml for the four sample emails. Exit code 1 if any check fails.
+Usage: python .claude/skills/rfq-verify/check.py [--build] [--out out/verify] [--live] [--no-quality]
+With --build it first builds the four sample emails with rfq/build.py (offline unless --live), using the
+same Python that runs this script, so it works the same in PowerShell, Git Bash and Linux shells.
+Reads out/<email name>/RFQ.xlsx, reply.eml and run.json. Exit code 1 if any check fails.
 """
 import argparse
 import email
 import email.policy
+import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -85,6 +90,9 @@ def check_email(name, folder, live):
         check(False, "reply.eml exists")
 
     if name == "email-1-ids-in-body" and not live:
+        run_json = folder / "run.json"
+        status = json.loads(run_json.read_text(encoding="utf-8")).get("status") if run_json.exists() else None
+        check(status == "ready", f"run.json status is ready (got {status!r})")
         ref = openpyxl.load_workbook(REFERENCE)
         check([c.value for c in ref["RFQ"][1]] == header, "RFQ header equals the reference")
         diffs = [(a[0], h, a[i], b[i]) for a, b in zip(rfq, rows(ref["RFQ"]))
@@ -96,12 +104,31 @@ def check_email(name, folder, live):
         check(got == want, "Sources rows in the reference order")
 
 
+def build_all(out, live, no_quality):
+    """Builds the four sample emails into a fresh folder under out/."""
+    if (ROOT / "out").resolve() not in out.parents:
+        sys.exit(f"--build only writes inside {ROOT / 'out'}; got {out}")
+    shutil.rmtree(out, ignore_errors=True)
+    extra = ([] if live else ["--offline"]) + (["--no-quality"] if no_quality else [])
+    for eml in sorted((ROOT / "emails").glob("*.eml")):
+        proc = subprocess.run([sys.executable, str(ROOT / "rfq" / "build.py"), str(eml), "--out", str(out),
+                               *extra], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+        print(proc.stdout.strip() or f"{eml.name}: (no output)")
+        if proc.returncode != 0:
+            print(f"  FAIL build exited {proc.returncode}: {proc.stderr.strip()}")
+            failures.append(f"build {eml.name}")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="out")
+    ap.add_argument("--out", default="out/verify")
+    ap.add_argument("--build", action="store_true", help="build the four emails first")
     ap.add_argument("--live", action="store_true", help="outputs were built live: 225123 must be Found")
+    ap.add_argument("--no-quality", action="store_true", help="with --build: skip the quality agent")
     args = ap.parse_args()
     out = (ROOT / args.out).resolve()
+    if args.build:
+        build_all(out, args.live, args.no_quality)
     for name in EXPECTED:
         check_email(name, out / name, args.live)
     print(f"\n{'ALL PASSED' if not failures else f'{len(failures)} FAILED'}")

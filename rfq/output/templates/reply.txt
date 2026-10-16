@@ -1,0 +1,12 @@
+$greeting
+
+$summary
+
+Products found: $found of $total. Not found: $not_found.
+$quality_line
+$item_table
+$unmatched_section
+Every value's source is listed on the Sources sheet of the attached RFQ.xlsx.
+
+Kind regards,
+Ferguson RFQ Agent

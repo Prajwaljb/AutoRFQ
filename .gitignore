@@ -6,3 +6,4 @@ __pycache__/
 venv/
 web/node_modules/
 web/dist/
+.pytest_cache/

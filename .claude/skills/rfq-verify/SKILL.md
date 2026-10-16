@@ -13,25 +13,21 @@ so it works with any implementation of `rfq/build.py`.
 ## Steps
 
 1. If `rfq/build.py` does not exist yet, say so and stop: there is nothing to check.
-2. Build all four sample emails into a fresh folder (use the venv Python: `.venv/bin/python` on
-   Linux/macOS, `.venv\Scripts\python.exe` on Windows; once `check.py --build` exists, use that instead of
-   the loop):
+2. Build and check in one command, with the venv Python (`.venv/bin/python` on Linux/macOS,
+   `.venv\Scripts\python.exe` on Windows):
    ```
-   rm -rf out/verify
-   for f in emails/*.eml; do .venv/bin/python rfq/build.py "$f" --out out/verify --offline $EXTRA; done
+   .venv/bin/python .claude/skills/rfq-verify/check.py --build [--live] [--no-quality]
    ```
-   - Default: `--offline`. This is the mode the reference and the Not found list are defined for.
-   - With `--live` in the arguments: drop `--offline` (the Chrome window must be open; see the `rfq-run`
-     skill) and pass `--live` to the checker. `225123` must then be Found.
-   - With `--no-quality` in the arguments: add it to `$EXTRA`. Run the default as well, because the spec
-     requires email 1 to match with and without the quality agent.
-   - If a build exits non-zero, report its error output; don't hide it.
-3. Run the checker:
-   ```
-   .venv/bin/python .claude/skills/rfq-verify/check.py --out out/verify [--live]
-   ```
-4. Check the status: `out/verify/email-1-ids-in-body/run.json` must say `ready` (spec "Done when"). Report it
-   if `run.json` is missing.
+   - Default: offline. This is the mode the reference and the Not found list are defined for.
+   - `--live`: builds without `--offline` (the Chrome window must be open; see the `rfq-run` skill).
+     `225123` must then be Found.
+   - `--no-quality`: run the default as well, because the spec requires email 1 to match with and
+     without the quality agent.
+   - It writes to `out/verify/` (cleared first) and prints each build's summary line. A build that exits
+     non-zero is reported with its error output.
+3. The checker covers the expected items and order, Not found rows, text-only cells, Sources coverage,
+   reply.eml, the email-1 reference (values and Sources order) and `run.json` status `ready` for email 1.
+4. To re-check existing outputs without rebuilding, drop `--build` (and pass `--out` if they are elsewhere).
 5. Also run `pytest -q` if a `tests/` folder exists, and `npm test` in `web/` if a `web/` folder exists.
 
 ## Report
