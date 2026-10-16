@@ -115,7 +115,10 @@ the Authenticator app, then run `az logout` and `az login`.
 **What runs where:** the email bot runs on a laptop, since it needs Gmail and, for live pages, Chrome. The
 upload page and dashboard run on Azure.
 
-Live link: _added after the first deploy_.
+**Live link:** https://autorfq-9b7e0b.azurewebsites.net (dashboard) · upload page:
+https://autorfq-9b7e0b.azurewebsites.net/rfq. It's an Azure Function App (Python 3.12, Linux) in no-browser mode.
+The email-1 self-check passes on the live link (6/6 rows, 105/105 sources), and email 1 uploaded there gives
+the same RFQ as the reference.
 
 ## Limits
 
