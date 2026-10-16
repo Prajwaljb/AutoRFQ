@@ -1,19 +1,54 @@
 # AutoRFQ: Ferguson RFQ emails in, filled RFQ out
 
+**Live:** [https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io](https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io) · upload page: [/rfq](https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io/rfq) · Diagnostics: [/diagnostics](https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io/diagnostics)
+
 A sourcing manager gets RFQ emails that list product IDs: in the body, in an Excel attachment, mixed with
-competitor part numbers, or buried in a forwarded thread. Copying each product's specs into the RFQ
-template by hand takes hours. AutoRFQ reads the email, looks every item up, fills
-`templates/rfq_template.xlsx` with a source for every value, checks the result, and replies in the same
-email thread, usually in under a minute.
+competitor part numbers, or buried in a forwarded thread. Copying each product's 23 specs into the RFQ
+template by hand takes **2 to 4 days** per RFQ (about 40 a month across 6 countries). AutoRFQ reads the email,
+looks every item up, fills `templates/rfq_template.xlsx` with a source for every value, checks the result, and
+replies in the same email thread, usually in **about a minute**.
 
-- **Base flow (no AI):** same email in, same Excel out. Email 1 matches `reference/email-1 reference output.xlsx`
-  cell for cell, including all 105 Sources rows.
-- **RFQ Quality Agent:** standardises units, flags missing or odd values, adds a Summary sheet, and holds
-  doubtful RFQs for a person to approve. AI (Azure OpenAI) only adds advisory suggestions.
-- **Web app:** runs, live progress, item cards with sources, keyboard review, approve & send.
-- **Email bot:** answers RFQ emails in a Gmail inbox.
+| | By hand | With AutoRFQ |
+|---|---|---|
+| Time to a finished RFQ | 2 to 4 days | ~1 minute, plus a quick look at the flagged cells |
+| Finding the products | read every email, attachment and forward | text, Excel and forwards parsed; phone, PO and line numbers filtered out; duplicates kept once |
+| Looking up 23 details each | ferguson.com one product at a time | ferguson.com, then the maker's spec sheet, then the product list; cached for 24 h |
+| Mistakes (units, blanks, contradictions) | found by eye, if at all | found by code and flagged in the Excel; nothing is overwritten |
+| Other brands' codes | look up and match by hand | competitor specs found online, Ferguson equivalents suggested |
+| Where did this value come from? | unknown | a Sources sheet row for every value |
 
-Spec: [`spec.md`](spec.md) · Plan: [`PLAN.md`](PLAN.md) · Features and diagrams: [`document.md`](document.md)
+Spec: [`spec.md`](spec.md) · Plan: [`PLAN.md`](PLAN.md) · Features and diagrams: [`document.md`](document.md) · Presentation: [`Ferguson Agentic Fest Presentation Template.html`](Ferguson%20Agentic%20Fest%20Presentation%20Template.html)
+
+## What it does
+
+1. **Reads the request:** from the team Gmail inbox or the web upload page. Body, HTML, xlsx/csv attachments and
+   forwarded threads; quoted replies are stripped.
+2. **Looks every product up:** live ferguson.com page (a real Chrome kept hidden), then the maker's spec sheet
+   PDF, then the catalog. A blank beats a guess.
+3. **Fills Ferguson's RFQ template** plus **Summary**, **Sources** and **Notes** sheets. Email 1 matches
+   `reference/email-1 reference output.xlsx` cell for cell, including all 105 Sources rows.
+4. **Quality Agent:** standardises units, flags missing, placeholder, wrong-unit and contradicting values
+   (grey, amber and orange cells with comments), and **holds doubtful RFQs** until a person approves. An AI model
+   only adds advisory notes; code verifies each claim. It flags, it never overwrites.
+5. **Competitor Product Finder:** a code like `Mutual 17783-79-3000` is looked up online (SerpApi) and matched to
+   a Ferguson product; the reply offers it ("Reply "use 5106914""). Confirmed matches are remembered in the product
+   database.
+6. **Replies in the same thread** with `RFQ.xlsx` attached, or waits in the dashboard for **Approve & send**.
+
+![A competitor part and its Ferguson match](arm-result.png)
+
+## The web app
+
+| Page | What it is |
+|---|---|
+| **Runs** | every RFQ, from the inbox or uploaded, with status, found/flagged counts and a fill ring |
+| **Run** | item cards with sources, the Agent findings, Notes & flags tab, Send reply / Approve & send, **Email RFQ…** to any address |
+| **Review** | keyboard review of held RFQs: accept, undo, substitute a Ferguson alternative |
+| **New RFQ** | upload an `.eml`, or try one of the four samples; pick live, no-browser or offline |
+| **Diagnostics** | which settings are on (never their values), mail login test, who watches the inbox, self-check |
+| **Admin** | shared product database (SQLite) with a Clear DB button (`ADMIN_TOKEN`) |
+
+Dark theme by default with a light option; Ferguson palette (provisional: the Brand Connect guidelines need a login).
 
 ## Architecture
 
@@ -83,10 +118,10 @@ Diagnostics page shows which keys are set (never their values).
 **Email bot:** with the mail keys set, the web app watches the inbox itself (every 30 s; `RFQ_INBOX_WATCH=0`
 turns it off), and Diagnostics shows who watches it and when it last checked. `.venv/bin/python mailbot.py` does
 the same without the web app; when it runs, the web app leaves the inbox to it. It answers unread emails from
-today with "RFQ" in the subject, sent from another address, in the same thread. RFQs that need review wait in the
+today with "RFQ" in the subject or the text, sent from another address, in the same thread. RFQs that need review wait in the
 dashboard until someone clicks Approve & send.
 
-**Upload page:** http://127.0.0.1:8000/rfq (the same page runs on Azure).
+**Upload page:** http://127.0.0.1:8000/rfq (the same page runs on Azure, see Live above).
 
 **Checks:**
 
@@ -125,10 +160,10 @@ the Authenticator app, then run `az logout` and `az login`.
 **What runs where:** everything runs on Azure: the container answers the inbox and looks up live pages; the
 Function App is the no-browser fallback.
 
-**Live link:** https://autorfq-9b7e0b.azurewebsites.net (dashboard) · upload page:
-https://autorfq-9b7e0b.azurewebsites.net/rfq. It's an Azure Function App (Python 3.12, Linux) in no-browser mode.
-The email-1 self-check passes on the live link (6/6 rows, 105/105 sources), and email 1 uploaded there gives
-the same RFQ as the reference.
+**Live link (container, live mode):** [https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io](https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io) · upload page: [/rfq](https://autorfq-live-f10b.happycoast-f8596a81.centralindia.azurecontainerapps.io/rfq).
+It answers the team inbox, looks up live ferguson.com pages through the hidden Chrome and shows the review
+dashboard. The earlier no-browser Function App, <https://autorfq-9b7e0b.azurewebsites.net>, stays up as a fallback
+with inbox watching off. The email-1 self-check passes on both (6/6 rows, 105/105 sources).
 
 ## Limits
 
