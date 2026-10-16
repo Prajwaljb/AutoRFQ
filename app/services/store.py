@@ -1,4 +1,4 @@
-"""Reads runs from out/<run>/ (run.json, events.jsonl): web runs and mailbot runs alike."""
+"""Reads runs from out/runs/<run>/ (run.json, events.jsonl): web runs and mailbot runs alike."""
 import json
 import time
 from pathlib import Path
@@ -12,11 +12,11 @@ class NotFound(Exception):
 
 
 def run_dir(run_id):
-    """The folder of a run, refusing anything outside out/."""
+    """The folder of a run, refusing anything outside out/runs/."""
     if not settings.RUN_ID_RE.match(run_id or "") or run_id in settings.NOT_RUNS:
         raise NotFound(run_id)
-    folder = (settings.OUT / run_id).resolve()
-    if folder.parent != settings.OUT or not folder.is_dir():
+    folder = (settings.RUNS / run_id).resolve()
+    if folder.parent != settings.RUNS or not folder.is_dir():
         raise NotFound(run_id)
     return folder
 
@@ -91,10 +91,10 @@ def _first_event(path):
 
 
 def list_runs():
-    if not settings.OUT.exists():
+    if not settings.RUNS.exists():
         return []
     rows = []
-    for folder in settings.OUT.iterdir():
+    for folder in settings.RUNS.iterdir():
         if folder.is_dir() and not folder.name.startswith(".") and folder.name not in settings.NOT_RUNS:
             row = summary(folder)
             if row:

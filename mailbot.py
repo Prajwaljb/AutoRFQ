@@ -35,10 +35,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SUBJECT_KEYWORD = "RFQ"
 POLL_SECONDS = 30
+SENDER = "mailbot.py"  # who is sending, for the mail log (the web app sets "web app")
 XLSX_TYPE = ("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 sys.path.insert(0, str(ROOT))
+from rfq.infra import layout, maillog  # noqa: E402
 from rfq.infra.env import load as load_env  # noqa: E402  (one .env loader for the bot, the base and the app)
 
 load_env(ROOT / ".env")
@@ -67,12 +69,16 @@ def should_skip(msg):
     return None
 
 
+def runs_dir():
+    return layout.runs_dir(OUT)
+
+
 def run_base(eml_path, extra_args):
-    """Runs the team's base on one email. Returns the folder it wrote RFQ.xlsx into."""
-    cmd = [sys.executable, "rfq/build.py", str(eml_path), "--out", str(OUT), *extra_args]
+    """Runs the team's base on one email. Returns the folder it wrote RFQ.xlsx into (out/runs/<name>)."""
+    cmd = [sys.executable, "rfq/build.py", str(eml_path), "--out", str(runs_dir()), *extra_args]
     log("Running: " + " ".join(cmd[1:]))
     subprocess.run(cmd, cwd=ROOT, check=True, timeout=900, env=child_env())
-    folder = OUT / eml_path.stem
+    folder = runs_dir() / eml_path.stem
     if not (folder / "RFQ.xlsx").exists():
         raise FileNotFoundError(f"rfq/build.py did not save {folder / 'RFQ.xlsx'} (see the spec)")
     return folder
@@ -113,10 +119,16 @@ def make_reply(original, folder, reply=None):
     return reply
 
 
-def send(message):
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(BOT_EMAIL, BOT_PASSWORD)
-        smtp.send_message(message)
+def send(message, kind="reply", run_id="", by="mailbot.py"):
+    """Sends one email and logs the attempt (sent or failed) in the mail log, then re-raises a failure."""
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(BOT_EMAIL, BOT_PASSWORD)
+            smtp.send_message(message)
+    except Exception as e:
+        maillog.record(message, kind, run_id, "failed", f"{type(e).__name__}: {e}", by)
+        raise
+    maillog.record(message, kind, run_id, "sent", by=by)
 
 
 def run_status(folder):
@@ -158,7 +170,7 @@ def hold_for_review(msg, folder):
         notice.set_content(f"An RFQ is waiting for review before it goes to the customer.\n\n"
                            f"Subject: {msg.get('Subject', '')}\nReview it here: {link}\n")
         try:
-            send(notice)
+            send(notice, "review_notice", folder.name, SENDER)
         except Exception as e:
             log(f"Could not send the review notice: {e}")
 
@@ -169,14 +181,14 @@ def answer(msg, eml, extra_args):
         folder = run_base(eml, extra_args)
     except Exception as e:  # build crashed or timed out: the sender still gets one reply
         log(f"The base failed on this email ({type(e).__name__}: {e}); sending the follow-up reply")
-        send(make_reply(msg, None, follow_up_reply()))
-        set_status(OUT / eml.stem, "fallback_sent")
+        send(make_reply(msg, None, follow_up_reply()), "fallback", eml.stem, SENDER)
+        set_status(runs_dir() / eml.stem, "fallback_sent")
         return
     status = run_status(folder)
     if status == "needs_review":
         hold_for_review(msg, folder)
         return
-    send(make_reply(msg, folder))
+    send(make_reply(msg, folder), "reply", folder.name, SENDER)
     set_status(folder, "fallback_sent" if status == "failed" else "sent")
     log(f"Replied with {folder / 'RFQ.xlsx'}")
 
@@ -232,6 +244,8 @@ def last_heartbeat():
 def check_once(extra_args=(), by="mailbot.py"):
     """One inbox check with heartbeats before and after (a long build never looks like a stopped bot).
     Returns "" or the problem."""
+    global SENDER
+    SENDER = by
     heartbeat(by)
     error = ""
     try:
@@ -250,6 +264,7 @@ def main():
     extra_args = [a for a in args if a != "--once"]
     if not BOT_EMAIL or not BOT_PASSWORD:
         sys.exit("Set BOT_EMAIL and BOT_PASSWORD in .env first (see the guide).")
+    layout.migrate(OUT)
     if once:
         check_inbox(extra_args)
         return

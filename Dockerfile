@@ -24,7 +24,7 @@ COPY mailbot.py ./
 ENV RFQ_MODE=live \
     RFQ_IN_CONTAINER=1 \
     RFQ_OUT_DIR=/data/out \
-    RFQ_PRODUCTS_DB=/data/out/products.db \
+    RFQ_PRODUCTS_DB=/data/out/db/products.db \
     PYTHONUNBUFFERED=1
 EXPOSE 8000
 # tini reaps the browser processes each live run leaves behind

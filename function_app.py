@@ -9,7 +9,7 @@ import os
 os.environ.setdefault("RFQ_MODE", "no-browser")       # no Chrome in the cloud: catalog + spec sheets
 os.environ.setdefault("RFQ_OUT_DIR", "/tmp/autorfq")  # only /tmp is writable
 os.environ.setdefault("RFQ_AUTO_BROWSER", "0")
-os.environ.setdefault("RFQ_PRODUCTS_DB", "/tmp/autorfq/products.db")
+os.environ.setdefault("RFQ_PRODUCTS_DB", "/tmp/autorfq/db/products.db")
 
 import azure.functions as func  # noqa: E402
 

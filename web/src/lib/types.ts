@@ -172,6 +172,22 @@ export interface RunDetail {
   files: string[];
   review?: ReviewState;
   mail_configured: boolean;
+  mail_log?: MailEntry[];
+}
+
+export interface MailEntry {
+  id: number;
+  at: number;
+  at_text: string;
+  run_id: string;
+  kind: string;
+  to_addr: string;
+  subject: string;
+  attachments: string;
+  message_id: string;
+  status: "sent" | "failed";
+  error: string;
+  sent_by: string;
 }
 
 export interface Health {

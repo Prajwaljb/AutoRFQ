@@ -42,6 +42,7 @@ replies in the same thread, usually in about a minute. Each RFQ produces:
   - **Notes**: what happened to each item and why.
 - **`reply.eml`**: the answer in the customer's thread, with the workbook attached.
 - **`run.json`** (status, counts, flags) plus `events.jsonl` and `run.log` for the dashboard and debugging.
+- A row in the **mail log** for every email sent (section 6.1).
 
 Three rules shape everything:
 
@@ -82,7 +83,8 @@ flowchart LR
     subgraph Data
         CAT["data/product_catalog.*"]
         SPC["data/spec_cache/<br/>bundled PDFs"]
-        DB[("out/products.db<br/>SQLite")]
+        DB[("out/db/products.db<br/>SQLite")]
+        MDB[("out/db/mail.db<br/>sent-mail log")]
     end
     WEB["React web/<br/>dashboard + review UI"]
 
@@ -102,6 +104,8 @@ flowchart LR
     QA --> LLM
     APP --> REV --> OUT
     APP -->|send reply| GM
+    APP --> MDB
+    MB --> MDB
 ```
 
 | Layer | Folder | Responsibility |
@@ -222,7 +226,7 @@ dashboard, **Use instead** substitutes the Ferguson product and stores the cross
 
 ### 4.4 The product database (`rfq/infra/productdb.py`)
 
-A SQLite file (`out/products.db`) with two tables: `products` (scraped values with their sources; reused for
+A SQLite file (`out/db/products.db`) with two tables: `products` (scraped values with their sources; reused for
 24 h, `RFQ_DB_TTL_HOURS`) and `crossrefs` (competitor code → Ferguson product). It is shared by every run, so
 the second RFQ that mentions a product is instant. The **Admin** page lists it and has a **Clear DB** button
 (`ADMIN_TOKEN`).
@@ -337,6 +341,29 @@ sequenceDiagram
     G-->>C: reply + RFQ.xlsx
 ```
 
+### 6.1 Where files go, and the log of sent mail
+
+```text
+out/                      (RFQ_OUT_DIR)
+  runs/<run id>/          RFQ.xlsx, reply.eml, run.json, run.log, events.jsonl, review.json
+  inbox/                  emails received by the bot (.eml)
+  uploads/                emails uploaded in the dashboard (.eml)
+  db/products.db          product cache and cross-references (Admin can clear it)
+  db/mail.db              the log of sent emails (never cleared)
+  .cache/                 saved pages and PDFs for --replay
+```
+
+Every send goes through one function (`mailbot.send`), which writes a row to the **mail log** whether the mail
+server accepted the message or not. A row holds: when, run, **kind** (`reply` in the customer's thread,
+`rfq_email` to an address chosen in the dashboard, `fallback` "a person will follow up", `review_notice`),
+recipient, subject, attachments, message and thread IDs, **sent / failed with the error**, and who sent it (web
+app, `mailbot.py`, Azure timer or dashboard). It lives in its own SQLite file, so **Clear DB never touches it**
+and a failed or repeated send can always be traced. The **Sent mail** page lists it with filters, and each run
+has a Sent mail tab. A logging error never blocks a reply.
+
+An older flat `out/` is moved into this layout when the app or the bot starts, and sends that older versions
+kept in `run.json` are imported once.
+
 **Review page:** flags grouped by item, high severity first, with a "3 of 7 resolved" line. Actions: keep the
 value, edit it, clear it (unknown), or substitute a Ferguson alternative. An edit or clear adds a
 `human_review` Sources row. Keyboard: ↑/↓ move, Enter keep, E edit, Del clear, Ctrl+Z undo. **Approve & send**
@@ -353,6 +380,7 @@ stays disabled until every high-severity flag is resolved, and says why.
 | **Review** | the keyboard review above |
 | **New RFQ** | upload an `.eml` or try one of the four samples; choose live, no-browser or offline |
 | **Diagnostics** | which settings are on (never their values), mail login test, who watches the inbox and when it last checked, self-check |
+| **Sent mail** | the mail log: every email sent, filter by result and type, link to its run |
 | **Admin** | the product database, Clear DB |
 | **/rfq** | a plain upload page served by the same app |
 
@@ -368,6 +396,7 @@ flowchart TD
         E3["POST /review, /review/undo, /substitute, /approve, /send"]
         E4["GET /health, /samples  ·  POST /selfcheck, /mail/test"]
         E5["GET /admin/products  ·  POST /admin/clear-db, /admin/seed"]
+        E6["GET /mail-log"]
     end
     Web --> API
     E2 --> RN["services/runner.py<br/>build.py subprocess,<br/>one live run at a time"]
@@ -542,7 +571,7 @@ which keys are set, never their values. See `.env.example`.
 | `SERPAPI_API_KEY` | competitor specs from the web |
 | `REVIEW_NOTIFY_EMAIL`, `DASHBOARD_URL` | "needs review" notice and its link |
 | `RFQ_MODE` | force `live`, `no-browser` or `offline` (set on Azure) |
-| `RFQ_OUT_DIR`, `RFQ_PRODUCTS_DB`, `RFQ_DB_TTL_HOURS` | where runs and the product database live; reuse window |
+| `RFQ_OUT_DIR`, `RFQ_PRODUCTS_DB`, `RFQ_MAIL_DB`, `RFQ_DB_TTL_HOURS` | where runs and the two databases live; reuse window |
 | `RFQ_AUTO_BROWSER`, `RFQ_SHOW_BROWSER`, `RFQ_CDP` | open and close the scraping Chrome; show it; its address |
 | `RFQ_INBOX_WATCH` | `0` turns the in-app inbox watcher off |
 | `ADMIN_TOKEN` | protects the Admin endpoints |
@@ -558,7 +587,8 @@ which keys are set, never their values. See `.env.example`.
 - **Quality:** the deck cases (the Application/Lettering clash in email 1, bare numbers in email 2), units
   with no quiet fixes, and the LLM staying advisory (claims verified by code, flags capped at medium).
 - **Review and send:** decisions, undo, the hold → approve → reply path, send rules (held and uploaded RFQs
-  refused, `sent_to` recorded), the inbox watcher's search and read-first behaviour.
+  refused), the inbox watcher's search and read-first behaviour, and the mail log (sent and failed rows, filters,
+  one-time import, layout migration).
 - **Failures and determinism:** broken-input fixtures, exit codes, repeatable output.
 - **Web:** vitest unit tests; the API is covered by integration tests.
 - **Acceptance script:** `python .claude/skills/rfq-verify/check.py --build` rebuilds the four samples and

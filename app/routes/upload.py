@@ -81,8 +81,8 @@ async def upload(file: UploadFile = File(...)):
     stem = safe_folder_name(name.rsplit(".", 1)[0].lstrip(". "), limit=50) or "upload"
     eml = settings.UPLOADS / f"{stem}-{time.strftime('%Y%m%d-%H%M%S')}.eml"
     eml.write_bytes(data)
-    proc = runner.run_sync(eml, _mode(), settings.OUT)
-    run_dir = settings.OUT / safe_folder_name(eml.stem)
+    proc = runner.run_sync(eml, _mode(), settings.RUNS)
+    run_dir = settings.RUNS / safe_folder_name(eml.stem)
     try:
         run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):

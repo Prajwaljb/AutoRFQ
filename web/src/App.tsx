@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
-import { Activity, Database, Inbox, Moon, Plus, Sun } from "lucide-react";
+import { Activity, Database, Inbox, Mail, Moon, Plus, Sun } from "lucide-react";
 import { HealthBar, useHealth } from "./components/HealthBar";
 import { LinkButton } from "./components/ui/button";
 import { cn } from "./components/ui/cn";
@@ -10,8 +10,9 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { NewRunPage } from "./pages/NewRunPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { AdminPage } from "./pages/AdminPage";
+import { MailPage } from "./pages/MailPage";
 
-const API_VERSION = 3; // must match app/settings.py
+const API_VERSION = 4; // must match app/settings.py
 
 function ThemeToggle() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
@@ -38,6 +39,7 @@ function ThemeToggle() {
 
 const NAV = [
   { to: "/", label: "Runs", icon: Inbox, end: true },
+  { to: "/mail", label: "Sent mail", icon: Mail, end: false },
   { to: "/diagnostics", label: "Diagnostics", icon: Activity, end: false },
   { to: "/admin", label: "Admin", icon: Database, end: false },
 ];
@@ -98,6 +100,7 @@ export function App() {
               <Route path="/runs/:id/review" element={<ReviewPage />} />
               <Route path="/new" element={<NewRunPage health={health} />} />
               <Route path="/diagnostics" element={<DiagnosticsPage health={health} />} />
+              <Route path="/mail" element={<MailPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<p className="text-muted">Page not found.</p>} />
             </Routes>

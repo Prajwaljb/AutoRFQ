@@ -46,6 +46,7 @@ How it works, with diagrams: [`document.md`](document.md) · Presentation: [`Fer
 | **Review** | keyboard review of held RFQs: accept, undo, substitute a Ferguson alternative |
 | **New RFQ** | upload an `.eml`, or try one of the four samples; pick live, no-browser or offline |
 | **Diagnostics** | which settings are on (never their values), mail login test, who watches the inbox, self-check |
+| **Sent mail** | the log of every email sent (replies, RFQ emails, notices): when, to whom, which run, sent or failed and why |
 | **Admin** | shared product database (SQLite) with a Clear DB button (`ADMIN_TOKEN`) |
 
 Dark theme by default with a light option; Ferguson palette (provisional: the Brand Connect guidelines need a login).
@@ -76,6 +77,21 @@ flowchart LR
 | `tests/` | 117 offline tests (pytest) + vitest |
 | `data/spec_cache/` | Bundled spec sheet PDFs, the fallback when a download fails |
 
+## Where files go
+
+```text
+out/                      (RFQ_OUT_DIR)
+  runs/<run id>/          RFQ.xlsx, reply.eml, run.json, run.log, events.jsonl, review.json: one folder per RFQ
+  inbox/                  emails received by the bot (.eml)
+  uploads/                emails uploaded in the dashboard (.eml)
+  db/products.db          product cache and competitor cross-references (Admin can clear it)
+  db/mail.db              log of every email sent (never cleared by Clear DB)
+  .cache/                 saved ferguson.com pages and spec sheet PDFs, for --replay
+```
+
+The app and the bot move an older flat `out/` into this layout on start (run folders into `runs/`, `products.db`
+into `db/`). Sends recorded by older versions in `run.json` are imported into the mail log once.
+
 ## Run it
 
 Python 3.10+ and Node 20+. Commands for Linux/macOS; on Windows use `.venv\Scripts\python` and `py -3`.
@@ -93,7 +109,7 @@ python -m venv .venv            # Windows: py -3 -m venv .venv
 .venv/bin/python rfq/build.py emails/email-1-ids-in-body.eml --out out --offline  # catalog only, repeatable
 ```
 
-This writes `out/<email name>/RFQ.xlsx`, `reply.eml`, `run.json` and `run.log`.
+`build.py --out <folder>` writes `<folder>/<email name>/RFQ.xlsx`, `reply.eml`, `run.json` and `run.log`; the web app and the bot use `out/runs/` for it.
 
 | Mode | Option | Sources used |
 |---|---|---|
@@ -114,6 +130,7 @@ Diagnostics page shows which keys are set (never their values).
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | the quality agent's LLM check (or `AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT`) |
 | `REVIEW_NOTIFY_EMAIL`, `DASHBOARD_URL` | optional "needs review" notice and its link |
 | `SERPAPI_API_KEY` | optional web search for competitor codes with no description |
+| `RFQ_OUT_DIR`, `RFQ_PRODUCTS_DB`, `RFQ_MAIL_DB` | where runs live, and the two databases (defaults: `out/`, `out/db/products.db`, `out/db/mail.db`) |
 
 **Email bot:** with the mail keys set, the web app watches the inbox itself (every 30 s; `RFQ_INBOX_WATCH=0`
 turns it off), and Diagnostics shows who watches it and when it last checked. `.venv/bin/python mailbot.py` does

@@ -13,10 +13,11 @@ import { Confetti, CountUp, FillRing, PipelineStrip } from "../components/fx";
 import { EmailView } from "../components/EmailView";
 import { Button, LinkButton } from "../components/ui/button";
 import { Badge, Card, Dialog, ErrorBox, Skeleton, Tabs } from "../components/ui/primitives";
+import { MailTable } from "../components/MailTable";
 import { useToast } from "../components/ui/toast";
 import { useReviewer } from "./ReviewPage";
 
-type Tab = "items" | "email" | "sources" | "notes" | "activity";
+type Tab = "items" | "email" | "sources" | "notes" | "mail" | "activity";
 const MANUAL_MINUTES_PER_ITEM = 6;
 
 function describeEvent(e: PipelineEvent): string {
@@ -361,6 +362,7 @@ export function RunPage() {
           { value: "email", label: "Email" },
           { value: "sources", label: "Sources" },
           { value: "notes", label: `Notes & flags (${(run?.counts?.flags ?? 0) + (run?.notes?.length ?? 0)})` },
+          { value: "mail", label: `Sent mail (${detail.mail_log?.length ?? 0})` },
           { value: "activity", label: "Activity" },
         ]}
       />
@@ -448,6 +450,16 @@ export function RunPage() {
       )}
 
       {tab === "notes" && run && <NotesTab run={run} />}
+
+      {tab === "mail" && (
+        <Card className="p-4">
+          {detail.mail_log?.length ? (
+            <MailTable entries={detail.mail_log} showRun={false} />
+          ) : (
+            <p className="text-sm text-muted">Nothing has been sent for this RFQ yet.</p>
+          )}
+        </Card>
+      )}
 
       {tab === "activity" && (
         <Card className="space-y-3 p-4 text-sm">

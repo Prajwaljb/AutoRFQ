@@ -20,7 +20,9 @@ os.environ["RFQ_SPEC_DOWNLOAD"] = "0"  # tests never download: spec sheets come 
 os.environ["RFQ_AUTO_BROWSER"] = "0"   # tests never open a browser window
 os.environ["RFQ_INBOX_WATCH"] = "0"    # tests never watch the real inbox
 import tempfile  # noqa: E402
-os.environ["RFQ_PRODUCTS_DB"] = os.path.join(tempfile.mkdtemp(prefix="rfq-db-"), "products.db")  # not out/
+_db_dir = tempfile.mkdtemp(prefix="rfq-db-")
+os.environ["RFQ_PRODUCTS_DB"] = os.path.join(_db_dir, "products.db")  # tests never touch out/
+os.environ["RFQ_MAIL_DB"] = os.path.join(_db_dir, "mail.db")
 
 
 def run_build(eml, out, *args, env=None):

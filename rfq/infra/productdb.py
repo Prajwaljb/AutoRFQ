@@ -7,7 +7,7 @@
   scaling (swap SQLite for a server database behind the same functions).
 - Offline and no-browser runs never read from it, so they stay repeatable (the reference test is offline).
 
-Location: RFQ_PRODUCTS_DB, else out/products.db (on Azure Functions /tmp/autorfq/products.db).
+Location: RFQ_PRODUCTS_DB, else out/db/products.db (on Azure Functions /tmp/autorfq/products.db).
 """
 import json
 import os
@@ -50,7 +50,7 @@ def default_path():
     if value:
         return Path(value)
     out = os.environ.get("RFQ_OUT_DIR", "").strip()
-    return (Path(out) if out else config.ROOT / "out") / "products.db"
+    return (Path(out) if out else config.ROOT / "out") / "db" / "products.db"
 
 
 def ttl_hours():

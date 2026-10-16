@@ -1,4 +1,4 @@
-import type { Crossref, DbProduct, DbStats, Health, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
+import type { Crossref, DbProduct, DbStats, Health, MailEntry, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -69,6 +69,10 @@ export const api = {
     request<{ cleared: number }>("/api/admin/clear-db", { method: "POST", headers: { "X-Admin-Token": token } }),
   adminSeed: (token = "") =>
     request<{ added: number }>("/api/admin/seed", { method: "POST", headers: { "X-Admin-Token": token } }),
+  mailLog: (f: { status?: string; kind?: string; run_id?: string } = {}) =>
+    request<{ entries: MailEntry[]; counts: { sent: number; failed: number }; kinds: string[] }>(
+      `/api/mail-log?${new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][])}`,
+    ),
   mailTest: () => request<{ ok: boolean; detail: string }>("/api/mail/test", { method: "POST" }),
   selfcheck: () =>
     request<{ ok: boolean; rows?: string; sources?: string; detail: string }>("/api/selfcheck", { method: "POST" }),

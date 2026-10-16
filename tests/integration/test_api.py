@@ -12,6 +12,7 @@ from conftest import EMAILS
 def client(tmp_path, monkeypatch):
     from app import settings
     monkeypatch.setattr(settings, "OUT", tmp_path)
+    monkeypatch.setattr(settings, "RUNS", tmp_path / "runs")
     monkeypatch.setattr(settings, "UPLOADS", tmp_path / "uploads")
     monkeypatch.setattr(settings, "INBOX", tmp_path / "inbox")
     monkeypatch.setattr(settings, "CACHE", tmp_path / ".cache")
@@ -80,7 +81,7 @@ def test_review_and_approve_without_mail(client, tmp_path, monkeypatch):
             cells["Width"].value = "60 in"
         return cells
     monkeypatch.setattr(CatalogSource, "lookup", wrong)
-    _, folder = pipeline.run(EMAILS / "email-1-ids-in-body.eml", tmp_path, mode="offline")
+    _, folder = pipeline.run(EMAILS / "email-1-ids-in-body.eml", settings_runs(tmp_path), mode="offline")
     monkeypatch.setattr(CatalogSource, "lookup", original)
     run_id = folder.name
     review = client.get(f"/api/runs/{run_id}").json()["review"]
@@ -178,7 +179,7 @@ def test_send_rules(client, monkeypatch):
     monkeypatch.setattr(mailbot, "BOT_EMAIL", "bot@example.com")
     monkeypatch.setattr(mailbot, "BOT_PASSWORD", "x")
     monkeypatch.setattr(mailer.settings, "refresh", lambda: None)
-    monkeypatch.setattr(mailbot, "send", lambda msg: sent.append(msg))
+    monkeypatch.setattr(mailbot, "send", lambda msg, *a, **k: sent.append(msg))
     run_id = client.post("/api/runs", data={"sample": "email-1-ids-in-body", "mode": "offline"}).json()["id"]
     assert wait_done(client, run_id)["status"] == "ready"
     r = client.post(f"/api/runs/{run_id}/send", json={})
@@ -188,3 +189,8 @@ def test_send_rules(client, monkeypatch):
     assert r.status_code == 200 and sent[0]["To"] == "buyer@example.org"
     assert [p.get_filename() for p in sent[0].iter_attachments()] == ["RFQ.xlsx"]
     assert client.get(f"/api/runs/{run_id}").json()["run"]["sent_to"][0]["to"] == "buyer@example.org"
+
+
+def settings_runs(out):
+    """Where the app looks for runs under an output folder (out/runs)."""
+    return out / "runs"

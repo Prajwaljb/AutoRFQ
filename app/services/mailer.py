@@ -71,7 +71,7 @@ def send(run_dir, to=None):
         original = email.message_from_bytes(original_path.read_bytes(), policy=email.policy.default)
         reply = mailbot.make_reply(original, run_dir)
     try:
-        mailbot.send(reply)
+        mailbot.send(reply, "rfq_email" if to else "reply", run_dir.name, "dashboard")
     except Exception as e:
         raise SendFailed(f"The mail server did not accept the reply ({type(e).__name__}). Try again.") from e
     state.set_status(run_dir, "sent")

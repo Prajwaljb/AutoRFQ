@@ -32,7 +32,7 @@ def _set(run_id, **fields):
 
 
 def command(eml, mode, out=None):
-    cmd = [sys.executable, str(settings.ROOT / "rfq" / "build.py"), str(eml), "--out", str(out or settings.OUT)]
+    cmd = [sys.executable, str(settings.ROOT / "rfq" / "build.py"), str(eml), "--out", str(out or settings.RUNS)]
     if mode == config.OFFLINE:
         cmd.append("--offline")
     elif mode == config.NO_BROWSER:
@@ -80,7 +80,7 @@ def start(eml, mode):
     from rfq.infra.io import safe_folder_name
     run_id = safe_folder_name(eml.stem)
     _set(run_id, state="queued", mode=mode, email_path=str(eml), error="", started=time.time())
-    (settings.OUT / run_id).mkdir(parents=True, exist_ok=True)
+    (settings.RUNS / run_id).mkdir(parents=True, exist_ok=True)
     threading.Thread(target=_work, args=(run_id, eml, mode), daemon=True).start()
     return run_id
 

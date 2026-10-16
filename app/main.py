@@ -6,15 +6,19 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import settings
 from contextlib import asynccontextmanager
 
+from app import settings
 from app.routes import admin, health, review, runs, upload
+from app.routes import maillog as maillog_routes
+from rfq.infra import layout, maillog
 from app.services import inbox
 
 
 @asynccontextmanager
 async def lifespan(_app):
+    layout.migrate(settings.OUT)  # the old flat out/ becomes out/runs/ + out/db/
+    maillog.backfill(settings.RUNS)  # sends recorded by older versions in run.json
     inbox.start()  # answers RFQ emails while the app runs (when mail is set up)
     yield
     inbox.stop()
@@ -26,6 +30,7 @@ app.include_router(review.router)
 app.include_router(health.router)
 app.include_router(upload.router)
 app.include_router(admin.router)
+app.include_router(maillog_routes.router)
 
 if (settings.WEB_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=settings.WEB_DIST / "assets"), name="assets")

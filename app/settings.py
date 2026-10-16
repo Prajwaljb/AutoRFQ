@@ -13,6 +13,7 @@ import mailbot  # noqa: E402  (loads .env into the environment, and is reused to
 from rfq import config  # noqa: E402
 
 OUT = Path(os.environ.get("RFQ_OUT_DIR", "").strip() or ROOT / "out").resolve()
+RUNS = OUT / "runs"  # one folder per RFQ; see rfq/infra/layout.py
 UPLOADS = OUT / "uploads"
 INBOX = OUT / "inbox"
 CACHE = OUT / ".cache"
@@ -25,7 +26,7 @@ RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,120}$")
 NOT_RUNS = {"inbox", "uploads", "verify", "selfcheck"}
 
 
-API_VERSION = 3  # the web UI warns when the server it talks to is older than itself
+API_VERSION = 4  # the web UI warns when the server it talks to is older than itself
 
 
 def refresh():

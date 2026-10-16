@@ -13,6 +13,7 @@ from app import settings
 from app.services import runner, store
 from rfq import config
 from rfq.extract.mail import read_email
+from rfq.infra import maillog
 from rfq.infra.io import safe_folder_name
 
 router = APIRouter(prefix="/api")
@@ -37,6 +38,7 @@ def get_run(run_id: str):
         from rfq.review import state
         data["review"] = state.view(store.run_dir(run_id))
     data["mail_configured"] = settings.mail_configured()
+    data["mail_log"] = maillog.recent(limit=50, run_id=run_id)
     return data
 
 
@@ -64,7 +66,7 @@ async def start_run(file: UploadFile | None = File(None), sample: str = Form("")
         raise HTTPException(400, "Upload an .eml file or pick a sample email.")
     eml = settings.UPLOADS / f"{stem}-{stamp}.eml"
     n = 2
-    while eml.exists() or (settings.OUT / eml.stem).exists():
+    while eml.exists() or (settings.RUNS / eml.stem).exists():
         eml = settings.UPLOADS / f"{stem}-{stamp}-{n}.eml"
         n += 1
     eml.write_bytes(data)
