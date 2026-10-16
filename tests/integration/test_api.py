@@ -137,3 +137,17 @@ def test_function_app_wraps_the_api(monkeypatch):
 def test_mail_test_without_credentials(client):
     r = client.post("/api/mail/test").json()
     assert r["ok"] is False and "not set" in r["detail"]
+
+
+def test_admin_product_database(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("RFQ_PRODUCTS_DB", str(tmp_path / "admin.db"))
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    assert client.get("/api/admin/products").json()["stats"]["products"] == 0
+    assert client.post("/api/admin/seed").json()["added"] == 56
+    listing = client.get("/api/admin/products", params={"q": "Purple"}).json()
+    assert listing["products"] and all("purple" in p["description"].lower() for p in listing["products"])
+    assert client.get("/api/admin/products/5106912").json()["source"] == "catalog"
+    monkeypatch.setenv("ADMIN_TOKEN", "s3cret")
+    assert client.post("/api/admin/clear-db").status_code == 403
+    assert client.post("/api/admin/clear-db", headers={"X-Admin-Token": "s3cret"}).json()["cleared"] == 56
+    assert client.get("/api/admin/products/5106912").status_code == 404

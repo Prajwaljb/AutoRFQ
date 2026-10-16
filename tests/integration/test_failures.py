@@ -148,3 +148,25 @@ def test_no_browser_mode_still_finishes(tmp_path):
     proc = run_build(ROOT / "emails" / "email-1-ids-in-body.eml", tmp_path, "--no-browser")
     assert proc.returncode == 0, proc.stderr
     assert len(sheet_rows(tmp_path / "email-1-ids-in-body" / "RFQ.xlsx", "RFQ")) == 6
+
+
+def test_second_live_run_reuses_the_product_database(tmp_path, monkeypatch):
+    """All items fetched live recently: the live run needs no Chrome at all."""
+    from rfq.infra.productdb import ProductDB
+    from rfq.sources.catalog import CatalogSource
+    db_path = tmp_path / "products.db"
+    monkeypatch.setenv("RFQ_PRODUCTS_DB", str(db_path))
+    db, catalog = ProductDB(db_path), CatalogSource()
+    for pid in ("5106912", "5106935", "5106914", "5106966", "5106891", "5106880"):
+        cells = {c: type(v)(v.value, "ferguson_page", "high", "https://www.ferguson.com/x (read today)")
+                 for c, v in catalog.lookup(pid).items()}
+        db.upsert(pid, cells, catalog.extra(pid), "live")
+    proc = run_build(ROOT / "emails" / "email-1-ids-in-body.eml", tmp_path / "out", "--cdp", "http://127.0.0.1:9",
+                     env=dict(os.environ, RFQ_PRODUCTS_DB=str(db_path)))
+    assert proc.returncode == 0, proc.stderr
+    assert "Chrome is not open" not in proc.stderr  # no browser was needed
+    run = json.loads((tmp_path / "out" / "email-1-ids-in-body" / "run.json").read_text(encoding="utf-8"))
+    assert run["mode"] == "live" and run["counts"]["by_source"]["live"] == 6
+    assert sum("Read from the product database" in n["text"] for n in run["notes"]) == 6
+    assert sheet_rows(tmp_path / "out" / "email-1-ids-in-body" / "RFQ.xlsx", "RFQ") == \
+        sheet_rows(ROOT / "reference" / "email-1 reference output.xlsx", "RFQ")

@@ -1,4 +1,4 @@
-import type { Health, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
+import type { DbProduct, DbStats, Health, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -63,6 +63,12 @@ export const api = {
     request<{ ok: boolean }>(`/api/runs/${encodeURIComponent(id)}/substitute`, json({ requested, alternative, reviewer })),
   send: (id: string) =>
     request<{ status: string; sent_to: string }>(`/api/runs/${encodeURIComponent(id)}/send`, { method: "POST" }),
+  adminProducts: (q = "") =>
+    request<{ stats: DbStats; products: DbProduct[] }>(`/api/admin/products?q=${encodeURIComponent(q)}`),
+  adminClear: (token = "") =>
+    request<{ cleared: number }>("/api/admin/clear-db", { method: "POST", headers: { "X-Admin-Token": token } }),
+  adminSeed: (token = "") =>
+    request<{ added: number }>("/api/admin/seed", { method: "POST", headers: { "X-Admin-Token": token } }),
   mailTest: () => request<{ ok: boolean; detail: string }>("/api/mail/test", { method: "POST" }),
   selfcheck: () =>
     request<{ ok: boolean; rows?: string; sources?: string; detail: string }>("/api/selfcheck", { method: "POST" }),

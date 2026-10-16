@@ -155,6 +155,7 @@ export interface Health {
   forced_mode: string | null;
   running: string[];
   settings?: Record<string, Record<string, boolean>>;
+  api_version?: number;
 }
 
 export interface PipelineEvent {
@@ -167,4 +168,28 @@ export interface Sample {
   name: string;
   subject: string;
   sender: string;
+}
+
+export interface DbStats {
+  products: number;
+  by_source: Record<string, number>;
+  reused: number;
+  last_updated: number | null;
+  path: string;
+  ttl_hours: number;
+  token_required: boolean;
+  now: number;
+}
+
+export interface DbProduct {
+  product_id: string;
+  description: string;
+  source: string;
+  url: string;
+  fetched_at: number;
+  updated_at: number;
+  hits: number;
+  price: string;
+  availability: string;
+  cells: number;
 }

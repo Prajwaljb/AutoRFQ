@@ -18,6 +18,8 @@ for _name in ("BOT_EMAIL", "BOT_PASSWORD", "REVIEW_NOTIFY_EMAIL", "OPENAI_API_KE
 sys.path.insert(0, str(ROOT))
 os.environ["RFQ_SPEC_DOWNLOAD"] = "0"  # tests never download: spec sheets come from data/spec_cache
 os.environ["RFQ_AUTO_BROWSER"] = "0"   # tests never open a browser window
+import tempfile  # noqa: E402
+os.environ["RFQ_PRODUCTS_DB"] = os.path.join(tempfile.mkdtemp(prefix="rfq-db-"), "products.db")  # not out/
 
 
 def run_build(eml, out, *args, env=None):

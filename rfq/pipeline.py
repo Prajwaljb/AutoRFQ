@@ -9,6 +9,7 @@ from pathlib import Path
 from rfq import config
 from rfq.extract import extract_items, read_email
 from rfq.infra import chrome as chrome_launcher
+from rfq.infra.productdb import ProductDB
 from rfq.infra import log as runlog
 from rfq.infra.events import Events
 from rfq.infra.io import safe_folder_name, write_bytes_atomic, write_text_atomic
@@ -74,14 +75,37 @@ def _warn(result, logger, text):
     logger.warning(text)
 
 
-def _live_lookups(result, live, catalog, logger, events):
+def _from_product_db(result, db, events):
+    """{item index: (cells, extra)} for items fetched live within the TTL: no need to open the page again."""
+    cached = {}
+    if db is None:
+        return cached
+    for item in result.items:
+        if item.kind == CODE:
+            continue
+        try:
+            hit = db.fresh_live(item.product_id)
+        except Exception:
+            return cached
+        if hit is None:
+            continue
+        cells, extra, record = hit
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(record["fetched_at"]))
+        cached[item.index] = (cells, {**extra, "from_db": when})
+        result.add_note(item, "lookup", f"Read from the product database (fetched from ferguson.com on {when}); "
+                                        "not fetched again.")
+        events.emit("lookup_done", product_id=item.product_id, source="db", found=True)
+    return cached
+
+
+def _live_lookups(result, live, catalog, logger, events, skip=()):
     """{item index: (cells, extra)} from ferguson.com, within the time budget. Notes every fallback."""
     found = {}
     started = time.monotonic()
     blocks_in_a_row = 0
     stopped = ""
     for item in lookup_order(result.items):
-        if item.kind == CODE:
+        if item.kind == CODE or item.index in skip:
             continue
         if not stopped and time.monotonic() - started > config.LIVE_BUDGET_SECONDS:
             stopped = "the live lookup time budget (8 minutes) was used up"
@@ -116,11 +140,22 @@ def _live_lookups(result, live, catalog, logger, events):
     return found
 
 
+def _product_db(logger):
+    try:
+        return ProductDB()
+    except Exception as e:  # a broken database never stops a run
+        logger.warning("product database not available: %s", type(e).__name__)
+        return None
+
+
 def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay, keep_browser=False):
     live_results = {}
-    wants_live = mode == config.LIVE and any(i.kind != CODE for i in result.items)
+    db = _product_db(logger) if mode != config.OFFLINE else None
+    if mode == config.LIVE and not replay:
+        live_results = _from_product_db(result, db, events)
+    wants_live = mode == config.LIVE and any(i.kind != CODE and i.index not in live_results for i in result.items)
     if mode == config.LIVE and not wants_live:
-        pass  # nothing to look up: don't open a browser
+        pass  # nothing left to look up (or all in the product database): don't open a browser
     elif mode == config.LIVE:
         if not replay and not chrome_available(cdp) and config.AUTO_BROWSER:
             ok, message = chrome_launcher.launch(chrome_launcher.port_of(cdp))
@@ -133,7 +168,7 @@ def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay, keep_
             live = LiveSource(cdp, cache_dir, replay=replay)
             try:
                 live.open()
-                live_results = _live_lookups(result, live, catalog, logger, events)
+                live_results.update(_live_lookups(result, live, catalog, logger, events, skip=set(live_results)))
             except SourceUnavailable as e:
                 _warn(result, logger, f"Live lookup not available ({e}); used the catalog and spec sheets.")
             finally:
@@ -174,6 +209,14 @@ def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay, keep_
                 events.emit("spec_pdf_read", product_id=item.product_id, filled=filled, origin=spec.last_origin)
             elif spec.last_problem:
                 result.add_note(item, "spec", f"Spec sheet skipped: {spec.last_problem}.")
+
+    if db is not None:  # every found product goes into the shared product database
+        for item in result.items:
+            try:
+                db.save_item(item)
+            except Exception as e:
+                logger.warning("could not save %s to the product database: %s", item.product_id, type(e).__name__)
+                break
 
 
 def render_workbook(result):

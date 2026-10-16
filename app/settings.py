@@ -25,6 +25,19 @@ RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,120}$")
 NOT_RUNS = {"inbox", "uploads", "verify", "selfcheck"}
 
 
+API_VERSION = 3  # the web UI warns when the server it talks to is older than itself
+
+
+def refresh():
+    """Picks up .env edits (no restart needed) and hands the mail settings to mailbot."""
+    from rfq.infra import env
+    env.reload()
+    mailbot.BOT_EMAIL = os.environ.get("BOT_EMAIL", "").strip()
+    mailbot.BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "").replace(" ", "")
+    mailbot.REVIEW_NOTIFY_EMAIL = os.environ.get("REVIEW_NOTIFY_EMAIL", "").strip()
+    mailbot.DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "").strip()
+
+
 def mail_configured():
     return bool(mailbot.BOT_EMAIL and mailbot.BOT_PASSWORD)
 

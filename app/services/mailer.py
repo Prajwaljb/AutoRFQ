@@ -19,6 +19,7 @@ class SendFailed(Exception):
 
 def send(run_dir):
     """Sends the approved reply. The status becomes sent only after the mail server accepted it."""
+    settings.refresh()
     if not settings.mail_configured():
         raise MailNotConfigured("Mail is not set up (BOT_EMAIL and BOT_PASSWORD in .env).")
     run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))

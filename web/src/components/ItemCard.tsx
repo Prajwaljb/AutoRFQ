@@ -36,7 +36,7 @@ export function ItemCard({ item, flags, onOpen, delay = 0 }: { item: Item; flags
                 <p className="text-xs text-warning">Replaces requested {item.extra.replaces} (customer to confirm)</p>
               )}
               <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-muted">
-                <Badge tone="info">{VIA[item.found_via] ?? "Catalog"}</Badge>
+                <Badge tone="info" >{VIA[item.found_via] ?? "Catalog"}{item.extra?.from_db ? " · saved" : ""}</Badge>
                 <span className="tabular">{price ? money(price) : "Price on request"}</span>
                 <span aria-hidden>·</span>
                 <span>{availability(item.extra?.Availability)}</span>

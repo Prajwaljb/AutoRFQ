@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api")
 
 @router.get("/health")
 def health():
+    settings.refresh()
     forced = settings.FORCED_MODE
     return {
         "chrome": False if forced in ("no-browser", "offline") else chrome_available(settings.CDP, timeout=0.5),
@@ -28,6 +29,7 @@ def health():
         "forced_mode": forced or None,
         "running": runner.running(),
         "settings": env.status(),  # which keys are set (never their values)
+        "api_version": settings.API_VERSION,
     }
 
 
@@ -71,6 +73,7 @@ def mail_test():
     """Signs in to the team inbox (IMAP) and the mail server (SMTP) without sending anything."""
     import imaplib
     import smtplib
+    settings.refresh()
     if not settings.mail_configured():
         return {"ok": False, "detail": "BOT_EMAIL / BOT_PASSWORD are not set in .env."}
     out = {}

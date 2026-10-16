@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
-import { Activity, Inbox, Moon, Plus, Sun } from "lucide-react";
+import { Activity, Database, Inbox, Moon, Plus, Sun } from "lucide-react";
 import { HealthBar, useHealth } from "./components/HealthBar";
 import { LinkButton } from "./components/ui/button";
 import { cn } from "./components/ui/cn";
@@ -9,6 +9,9 @@ import { RunPage } from "./pages/RunPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { NewRunPage } from "./pages/NewRunPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
+import { AdminPage } from "./pages/AdminPage";
+
+const API_VERSION = 3; // must match app/settings.py
 
 function ThemeToggle() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
@@ -37,6 +40,7 @@ const NAV = [
   { to: "/", label: "Runs", icon: Inbox, end: true },
   { to: "/new", label: "New RFQ", icon: Plus, end: false },
   { to: "/diagnostics", label: "Diagnostics", icon: Activity, end: false },
+  { to: "/admin", label: "Admin", icon: Database, end: false },
 ];
 
 export function App() {
@@ -83,12 +87,19 @@ export function App() {
         </nav>
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl p-4 md:p-6">
+            {health && health.api_version !== API_VERSION && (
+              <div role="alert" className="mb-4 rounded-md border border-warning/50 bg-warning-bg p-3 text-sm text-warning">
+                The server is older than this page. Restart it to load the latest code and your .env:{" "}
+                <code className="font-mono">.venv/bin/python -m uvicorn app.main:app --port 8000</code>
+              </div>
+            )}
             <Routes>
               <Route path="/" element={<RunsPage />} />
               <Route path="/runs/:id" element={<RunPage />} />
               <Route path="/runs/:id/review" element={<ReviewPage />} />
               <Route path="/new" element={<NewRunPage health={health} />} />
               <Route path="/diagnostics" element={<DiagnosticsPage health={health} />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<p className="text-muted">Page not found.</p>} />
             </Routes>
           </div>

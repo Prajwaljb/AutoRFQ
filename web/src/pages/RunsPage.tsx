@@ -34,8 +34,10 @@ function Hero({ runs }: { runs: RunSummary[] }) {
   const done = runs.filter((r) => r.status !== "processing");
   const items = done.reduce((n, r) => n + r.items, 0);
   const found = done.reduce((n, r) => n + r.found, 0);
-  const withFill = done.filter((r) => r.found > 0 && r.fill_rate > 0);
-  const fill = withFill.length ? withFill.reduce((n, r) => n + (r.fill_rate || 0), 0) / withFill.length : 0;
+  const [stored, setStored] = useState(0);
+  useEffect(() => {
+    api.adminProducts().then((r) => setStored(r.stats.products)).catch(() => setStored(0));
+  }, [runs.length]);
   const flagged = done.reduce((n, r) => n + r.flags, 0);
   const notFound = done.reduce((n, r) => n + r.not_found, 0);
   return (
@@ -61,7 +63,7 @@ function Hero({ runs }: { runs: RunSummary[] }) {
         <div className="grid grid-cols-2 gap-3">
           <Stat label="RFQs processed" value={done.length} hint={`${runs.filter((r) => r.status === "needs_review").length} waiting for review`} />
           <Stat label="Items found" value={found} hint={`of ${items} requested`} />
-          <Stat label="Avg fill rate" value={fill} decimals={1} suffix="%" hint="spec cells with a sourced value" />
+          <Stat label="Products in database" value={stored} hint="looked up once, reused next time" />
           <Stat label="Values flagged" value={flagged} hint={`${notFound} not found items, with alternatives`} />
         </div>
       </div>

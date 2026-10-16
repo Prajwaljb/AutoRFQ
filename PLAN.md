@@ -719,6 +719,22 @@ alternative.
   code into the team folder (without `.env`, `venv`, `out`), fill in the team README, and open one PR. **Not
   done without the user's go-ahead**: the user chose `Prajwaljb/AutoRFQ` as the working repo.
 
+## Product database (added 2026-10-16, user request: "a centralized db for future scaling")
+- **What:** `rfq/infra/productdb.py`, a SQLite database (`out/products.db`, or `RFQ_PRODUCTS_DB`; on Azure
+  `/tmp/autorfq/products.db`) holding every product the flow has found.
+  - **Per product:** cells with their sources, price and stock, the source (live / catalog / spec), the URL,
+    the fetch time and a re-use count.
+- **Fetch once, reuse:** a live run takes a product fetched from ferguson.com within `RFQ_DB_TTL_HOURS`
+  (default 24) from the database, with a Note. When every item is fresh, no Chrome window is opened at all.
+- **Determinism kept:** offline and no-browser runs never read from it. The reference test is offline.
+- **Admin page (`/admin`):**
+  - stats and a searchable product table;
+  - **Load catalog**, which seeds the backup catalog and never replaces a live product;
+  - **Clear database**, for simulating a first run.
+  - Writes need `ADMIN_TOKEN` when it is set.
+- **Scaling:** the same functions (`get`, `fresh_live`, `upsert`, `list`, `stats`, `clear`) can be moved to a
+  server database (Postgres or Azure SQL) without touching the pipeline.
+
 ## Configuration (`.env`)
 One file in the repo root, git-ignored; `.env.example` is the committed template.
 - **Who reads it:** `rfq/infra/env.py` loads it once, for `build.py`, `mailbot.py` and the web app alike. Values
