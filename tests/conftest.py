@@ -1,5 +1,6 @@
 import email
 import email.policy
+import os
 import subprocess
 import sys
 from email.message import EmailMessage
@@ -11,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 EMAILS = ROOT / "emails"
 sys.path.insert(0, str(ROOT))
+os.environ["RFQ_SPEC_DOWNLOAD"] = "0"  # tests never download: spec sheets come from data/spec_cache
 
 
 def run_build(eml, out, *args, env=None):

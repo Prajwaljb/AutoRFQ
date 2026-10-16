@@ -16,6 +16,8 @@ CATALOG_JSON = _path("RFQ_CATALOG", ROOT / "data" / "product_catalog.json")
 CATALOG_SOURCES = _path("RFQ_CATALOG_SOURCES", ROOT / "data" / "product_catalog_sources.csv")
 SPEC_LINKS = ROOT / "data" / "spec_sheet_links.csv"
 SPEC_CACHE = ROOT / "data" / "spec_cache"
+# RFQ_SPEC_DOWNLOAD=0 reads spec sheets from the bundled copies only (tests, no network).
+SPEC_DOWNLOAD = os.environ.get("RFQ_SPEC_DOWNLOAD", "1").strip() != "0"
 REFERENCE = ROOT / "reference" / "email-1 reference output.xlsx"
 
 # Modes, from most to least sources used.

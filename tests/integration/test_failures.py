@@ -133,6 +133,17 @@ def test_unexpected_error_still_replies(tmp_path, monkeypatch):
     assert len(rows) == 6 and all(r[-1] == "Not found" for r in rows)
 
 
+def test_chrome_closed_falls_back_with_one_warning(tmp_path):
+    """Default (live) mode with nothing listening: catalog + spec sheets, one warning, exit 0."""
+    proc = run_build(ROOT / "emails" / "email-1-ids-in-body.eml", tmp_path, "--cdp", "http://127.0.0.1:9")
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stderr.count("Chrome is not open") == 1
+    run = json.loads((tmp_path / "email-1-ids-in-body" / "run.json").read_text(encoding="utf-8"))
+    assert run["mode"] == "no-browser" and run["counts"]["found"] == 6
+    assert sheet_rows(tmp_path / "email-1-ids-in-body" / "RFQ.xlsx", "RFQ") == \
+        sheet_rows(ROOT / "reference" / "email-1 reference output.xlsx", "RFQ")
+
+
 def test_no_browser_mode_still_finishes(tmp_path):
     proc = run_build(ROOT / "emails" / "email-1-ids-in-body.eml", tmp_path, "--no-browser")
     assert proc.returncode == 0, proc.stderr
