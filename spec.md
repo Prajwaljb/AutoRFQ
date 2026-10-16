@@ -113,6 +113,8 @@ can't be read.
   - `--no-quality`: skip the quality agent.
   - `--cdp <url>`: Chrome address, default `http://127.0.0.1:9333`.
   - `--replay`: reuse the cached pages and PDFs in `out/.cache/` (re-run without network).
+  - `--keep-browser`: leave the scraping Chrome window open. By default a live run opens the window if it
+    isn't running and closes it when the run is done.
 - **Output:** one printed line: items, found (live / spec sheet / catalog), not found, flags, warnings.
 - **Exit code:** `0` when the RFQ and reply were written (even with warnings), `2` for a wrong command line
   or missing email file, `1` only if the kit itself is broken (template or catalog missing).
@@ -122,8 +124,9 @@ can't be read.
     It doesn't send runs with status `Needs human review`; those wait for approval in the web app.
   - `uvicorn app.main:app`: the web app (runs, review, approve & send), serving the built `web/dist`
     (`npm ci && npm run build` in `web/` first).
-  - **Azure App Service:** startup command
-    `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`, with `RFQ_MODE=no-browser` in App Settings.
+  - **Azure App Service:** `python scripts/deploy_azure.py` (after `az login`). Startup command
+    `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`, with `RFQ_MODE=no-browser` and
+    `RFQ_OUT_DIR=/home/data/out` in App Settings.
 - **Python path:** use the venv. On Windows that's `.venv\Scripts\python`; on Linux, `.venv/bin/python`.
 
 ## Done when

@@ -7,3 +7,4 @@ venv/
 web/node_modules/
 web/dist/
 .pytest_cache/
+.azure-app.json

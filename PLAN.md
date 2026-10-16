@@ -46,7 +46,17 @@ animations, no emoji badges, nothing the customer or reviewer has to decode.
     bundled PDFs and never download.
 - **Open question:** `9677533` is listed on ferguson.com again. In live mode it is Found, but the `rfq-verify`
   checker expects Not found for it in `--live` too (the spec only requires that offline).
-- **Not built yet:** the Quality Agent (Part B), `app/` and `web/`, and the Azure deployment.
+- **Part B, web app and deploy script built (2026-10-16):**
+  - **Quality Agent:** `rfq/quality/` (units, rules, advisory LLM, Summary) and `rfq/review/state.py`.
+  - **Web:** `app/` (FastAPI) and `web/` (React + Vite + TS + Tailwind; shadcn-style components written by
+    hand on the brand tokens).
+  - **Deploy:** `scripts/deploy_azure.py`.
+  - **Chrome:** live runs open the scraping window and close it when done (`--keep-browser` keeps it).
+  - **Checks:** 90 pytest + 4 vitest. A Playwright run of the UI went through upload, a live email 2
+    build, held for review, keyboard review, approve, and the self-check.
+- **Blocked on the user:**
+  - Azure needs an MFA sign-in (`az login`) before `scripts/deploy_azure.py` can create the App Service;
+  - a real Gmail test needs `BOT_EMAIL` / `BOT_PASSWORD` in `.env`.
 - **Cleanup done (2026-10-16):** the spec-kit artifacts `specs/001-rfq-flow/` and `.specify/feature.json`
   are deleted ("No spec-kit" above). The root `spec.md` is the spec.
 - **spec.md reviewed and updated (2026-10-15):** IDs are 5-7 digits; product_id, Description and Lookup
