@@ -1,0 +1,18 @@
+# Python 3.10+ on Windows and Linux. Lower bounds only, all have Windows wheels.
+# Install: uv pip install -r requirements.txt   (or: pip install -r requirements.txt)
+
+# Base (Part A)
+openpyxl>=3.1          # read the template and attachments, write RFQ.xlsx
+playwright>=1.40       # attach to the open Chrome over CDP; no `playwright install` needed
+pypdf>=4.0             # read spec sheet PDFs
+
+# Quality Agent (Part B)
+openai>=1.40           # AzureOpenAI client with structured outputs
+
+# Web app and Azure
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9  # .eml uploads
+
+# Tests (FastAPI's TestClient uses the httpx package that openai already installs)
+pytest>=8.0
