@@ -52,7 +52,13 @@ def summary(folder):
         status = "failed"
     else:
         status = run.get("status", "ready")
-    counts = (run or {}).get("counts", {})
+    counts = dict((run or {}).get("counts", {}))
+    if run and "fill_rate" not in counts:  # runs built before fill_rate was recorded
+        try:
+            from rfq.models import RunResult
+            counts["fill_rate"] = RunResult.from_dict(run).fill_rate()
+        except Exception:
+            counts["fill_rate"] = 0
     first = _first_event(events) if run is None else {}
     return {
         "id": folder.name,

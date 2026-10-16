@@ -21,11 +21,25 @@ export function HighlightedText({ text, items }: { text: string; items: Item[] }
         if (!item || n % 2 === 0) return <Fragment key={n}>{part}</Fragment>;
         const repeat = seen.has(item.product_id);
         seen.add(item.product_id);
+        const found = item.lookup_status === "Found";
+        const competitor = item.kind === "code";
+        const style = found
+          ? "bg-success-bg text-success ring-success/40"
+          : competitor
+            ? "bg-warning-bg text-warning ring-warning/40"
+            : "bg-danger-bg text-danger ring-danger/40";
+        const label = repeat
+          ? "repeat · kept once"
+          : found
+            ? "found"
+            : competitor
+              ? `competitor${item.brand ? ` · ${item.brand}` : ""}`
+              : "not found";
+        const title = found ? item.description : item.reason;
         return (
-          <mark key={n} className="rounded bg-mark px-0.5 font-semibold text-text">
+          <mark key={n} title={title} className={`rounded-md px-1 py-0.5 font-semibold ring-1 ${style}`}>
             {part}
-            {repeat && <span className="ml-1 text-[10px] font-medium uppercase text-muted">repeat</span>}
-            {item.kind === "code" && !repeat && <span className="ml-1 text-[10px] font-medium uppercase text-muted">not Ferguson</span>}
+            <span className="ml-1 rounded bg-black/10 px-1 text-[10px] font-semibold uppercase tracking-wide">{label}</span>
           </mark>
         );
       })}
@@ -65,6 +79,11 @@ export function EmailView({
           </pre>
         </div>
       ))}
+      <div className="flex flex-wrap gap-3 text-xs text-muted">
+        <span><mark className="rounded bg-success-bg px-1 text-success">1234567</mark> found on ferguson.com or in the catalog</span>
+        <span><mark className="rounded bg-danger-bg px-1 text-danger">1234567</mark> Ferguson number we couldn't find</span>
+        <span><mark className="rounded bg-warning-bg px-1 text-warning">AB-123</mark> another brand's part: we suggest a Ferguson equivalent</span>
+      </div>
       {email.attachments.length > 0 && (
         <p className="text-xs text-muted">Items found in attachments are listed on the Items tab with their sheet row.</p>
       )}

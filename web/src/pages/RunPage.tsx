@@ -4,7 +4,7 @@ import { ArrowLeft, Download, FileText, LayoutGrid, List, MailCheck, ShieldCheck
 import { api, fileUrl, subscribeEvents } from "../lib/api";
 import type { Flag, Item, PipelineEvent, Run, RunDetail } from "../lib/types";
 import { availability, estimatedTotal, money, senderLabel, sourceLabel } from "../lib/format";
-import { severityTone, statusInfo } from "../lib/status";
+import { severityLabel, severityTone, statusInfo } from "../lib/status";
 import { StatusBadge, LookupBadge } from "../components/StatusBadge";
 import { ItemCard, ItemCardSkeleton } from "../components/ItemCard";
 import { SourceSheet } from "../components/SourceSheet";
@@ -36,6 +36,75 @@ function describeEvent(e: PipelineEvent): string {
   }
 }
 
+const STAGE_LABEL: Record<string, string> = {
+  extract: "Reading the email",
+  lookup: "Lookup",
+  spec: "Spec sheet",
+  quality: "Quality agent",
+  output: "Output",
+};
+
+/** Notes in plain words: what happened to each item, the values to check, and the blanks per item. */
+function NotesTab({ run }: { run: Run }) {
+  const toCheck = run.flags.filter((f) => f.severity === "high" || f.severity === "medium");
+  const blanks: Record<string, string[]> = {};
+  for (const f of run.flags) if (f.rule === "missing") (blanks[f.product_id] ??= []).push(f.column);
+  return (
+    <div className="space-y-4">
+      <Card className="grid gap-3 p-4 text-sm md:grid-cols-3">
+        <div className="flex items-start gap-2"><Badge tone="danger">{severityLabel("high")}</Badge><span className="text-muted">Probably wrong. Holds the RFQ until a person decides.</span></div>
+        <div className="flex items-start gap-2"><Badge tone="warning">{severityLabel("medium")}</Badge><span className="text-muted">Worth a second look. Doesn't hold the RFQ.</span></div>
+        <div className="flex items-start gap-2"><Badge>{severityLabel("low")}</Badge><span className="text-muted">No source had a value, so the cell stays empty. Blank means unknown; it's never guessed.</span></div>
+      </Card>
+
+      <Card className="divide-y divide-border">
+        <h3 className="p-3 text-sm font-semibold">Values to check ({toCheck.length})</h3>
+        {toCheck.length === 0 && <p className="p-3 text-sm text-muted">Nothing looks wrong.</p>}
+        {toCheck.map((f) => (
+          <div key={f.id} className="flex flex-wrap items-start gap-3 p-3 text-sm">
+            <span className="w-24 shrink-0 font-mono text-muted">{f.product_id}</span>
+            <Badge tone={severityTone(f.severity)}>{severityLabel(f.severity)}</Badge>
+            <span className="min-w-0 flex-1"><span className="font-medium">{f.column}</span>
+              {f.value && <span className="text-muted"> “{f.value}”</span>}: {f.issue}{f.resolved ? " (resolved)" : ""}</span>
+          </div>
+        ))}
+        {(run.ai_suggestions ?? []).map((f) => (
+          <div key={f.id} className="flex flex-wrap items-start gap-3 p-3 text-sm">
+            <span className="w-24 shrink-0 font-mono text-muted">{f.product_id}</span>
+            <Badge className="mark-model !text-[#7c2d12]">AI note</Badge>
+            <span className="min-w-0 flex-1"><span className="font-medium">{f.column}</span>: {f.issue}</span>
+          </div>
+        ))}
+      </Card>
+
+      {Object.keys(blanks).length > 0 && (
+        <Card className="divide-y divide-border">
+          <h3 className="p-3 text-sm font-semibold">Blank cells per item ({run.counts.missing ?? 0})</h3>
+          {Object.entries(blanks).map(([pid, cols]) => (
+            <div key={pid} className="flex flex-wrap items-start gap-3 p-3 text-sm">
+              <span className="w-24 shrink-0 font-mono text-muted">{pid}</span>
+              <Badge>{cols.length} blank</Badge>
+              <span className="min-w-0 flex-1 text-muted">{cols.join(", ")}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card className="divide-y divide-border">
+        <h3 className="p-3 text-sm font-semibold">What happened ({run.notes.length})</h3>
+        {run.notes.length === 0 && <p className="p-3 text-sm text-muted">Every item was read without problems.</p>}
+        {run.notes.map((n, i) => (
+          <div key={i} className="flex flex-wrap items-start gap-3 p-3 text-sm">
+            <span className="w-24 shrink-0 font-mono text-muted">{n.product_id || "email"}</span>
+            <Badge tone="info">{STAGE_LABEL[n.stage] ?? n.stage}</Badge>
+            <span className="min-w-0 flex-1">{n.text}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
 /** What the quality agent did, in the same colours as the Excel: grey missing, amber code, orange model. */
 function AgentFindings({ run }: { run: Run }) {
   const code = run.flags.filter((f) => !f.resolved && (f.severity === "high" || f.severity === "medium"));
@@ -62,7 +131,7 @@ function AgentFindings({ run }: { run: Run }) {
               <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-sm ${by === "model" ? "mark-model" : "mark-code"}`} aria-hidden />
               <span className="min-w-0">
                 <span className="font-mono text-xs text-muted">{f.product_id}</span> · <span className="font-medium">{f.column}</span>
-                <Badge tone={severityTone(f.severity)} className="ml-2">{f.severity}</Badge>
+                <Badge tone={severityTone(f.severity)} className="ml-2">{severityLabel(f.severity)}</Badge>
                 <Badge className="ml-1">by {by}</Badge>
                 <span className="mt-0.5 block text-muted">{f.issue}</span>
               </span>
@@ -291,7 +360,7 @@ export function RunPage() {
           { value: "items", label: "Items" },
           { value: "email", label: "Email" },
           { value: "sources", label: "Sources" },
-          { value: "notes", label: `Notes (${run?.notes?.length ?? 0})` },
+          { value: "notes", label: `Notes & flags (${(run?.counts?.flags ?? 0) + (run?.notes?.length ?? 0)})` },
           { value: "activity", label: "Activity" },
         ]}
       />
@@ -378,25 +447,7 @@ export function RunPage() {
         </Card>
       )}
 
-      {tab === "notes" && (
-        <Card className="divide-y divide-border">
-          {(run?.notes ?? []).length === 0 && <p className="p-4 text-sm text-muted">No notes: every item was read without problems.</p>}
-          {(run?.notes ?? []).map((n, i) => (
-            <div key={i} className="flex gap-3 p-3 text-sm">
-              <span className="w-28 shrink-0 font-mono text-muted">{n.product_id || "email"}</span>
-              <Badge>{n.stage}</Badge>
-              <span>{n.text}</span>
-            </div>
-          ))}
-          {(run?.flags ?? []).filter((f) => f.severity !== "info").map((f) => (
-            <div key={f.id} className="flex gap-3 p-3 text-sm">
-              <span className="w-28 shrink-0 font-mono text-muted">{f.product_id}</span>
-              <Badge tone={severityTone(f.severity)}>{f.severity}</Badge>
-              <span>{f.column}: {f.issue}{f.resolved ? " (resolved)" : ""}</span>
-            </div>
-          ))}
-        </Card>
-      )}
+      {tab === "notes" && run && <NotesTab run={run} />}
 
       {tab === "activity" && (
         <Card className="space-y-3 p-4 text-sm">

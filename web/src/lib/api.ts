@@ -63,6 +63,7 @@ export const api = {
     request<{ ok: boolean }>(`/api/runs/${encodeURIComponent(id)}/substitute`, json({ requested, alternative, reviewer })),
   send: (id: string) =>
     request<{ status: string; sent_to: string }>(`/api/runs/${encodeURIComponent(id)}/send`, { method: "POST" }),
+  mailTest: () => request<{ ok: boolean; detail: string }>("/api/mail/test", { method: "POST" }),
   selfcheck: () =>
     request<{ ok: boolean; rows?: string; sources?: string; detail: string }>("/api/selfcheck", { method: "POST" }),
 };

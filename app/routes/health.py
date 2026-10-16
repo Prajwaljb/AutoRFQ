@@ -64,3 +64,29 @@ def selfcheck():
     ok = rows_ok == len(ref) == len(ours) and src_ok == len(s_ref) == len(s_ours)
     return {"ok": ok, "rows": f"{rows_ok}/{len(ref)}", "sources": f"{src_ok}/{len(s_ref)}",
             "detail": proc.stdout.strip()}
+
+
+@router.post("/mail/test")
+def mail_test():
+    """Signs in to the team inbox (IMAP) and the mail server (SMTP) without sending anything."""
+    import imaplib
+    import smtplib
+    if not settings.mail_configured():
+        return {"ok": False, "detail": "BOT_EMAIL / BOT_PASSWORD are not set in .env."}
+    out = {}
+    try:
+        with imaplib.IMAP4_SSL("imap.gmail.com", timeout=20) as imap:
+            imap.login(settings.mailbot.BOT_EMAIL, settings.mailbot.BOT_PASSWORD)
+        out["imap"] = "ok"
+    except Exception as e:
+        out["imap"] = f"{type(e).__name__}: {str(e)[:120]}"
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as smtp:
+            smtp.login(settings.mailbot.BOT_EMAIL, settings.mailbot.BOT_PASSWORD)
+        out["smtp"] = "ok"
+    except Exception as e:
+        out["smtp"] = f"{type(e).__name__}: {str(e)[:120]}"
+    ok = out["imap"] == "ok" and out["smtp"] == "ok"
+    hint = "" if ok else (" Use a Google App Password (16 lowercase letters) for BOT_PASSWORD, not the account password:"
+                          " Google Account -> Security -> 2-Step Verification -> App passwords. Then restart the app.")
+    return {"ok": ok, "detail": f"IMAP: {out['imap']} · SMTP: {out['smtp']}.{hint}"}

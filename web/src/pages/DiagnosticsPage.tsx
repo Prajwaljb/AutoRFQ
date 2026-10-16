@@ -18,6 +18,8 @@ function Row({ label, ok, text }: { label: string; ok: boolean; text: string }) 
 export function DiagnosticsPage({ health }: { health: Health | null }) {
   const [check, setCheck] = useState<Awaited<ReturnType<typeof api.selfcheck>> | null>(null);
   const [running, setRunning] = useState(false);
+  const [mail, setMail] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
 
   async function selfcheck() {
     setRunning(true);
@@ -40,7 +42,7 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
         {health ? (
           <>
             <Row label="Default mode" ok text={health.forced_mode ? `${health.forced_mode} (set by RFQ_MODE)` : health.mode} />
-            <Row label="Chrome" ok={health.chrome}
+            <Row label="Chrome" ok={health.chrome || health.chrome_auto}
               text={health.chrome ? "The scraping window is open." : health.chrome_auto ? "Closed. Live runs open it and close it when done." : "Not available on this server: catalog + spec sheets."} />
             <Row label="LLM check" ok={health.ai} text={health.ai ? "OpenAI / Azure OpenAI key set: the model looks for odd values (advisory)." : "Off: set OPENAI_API_KEY (or AZURE_OPENAI_*) in .env. Units, blanks and rule flags still run."} />
             <Row label="Inbox" ok={health.inbox} text={health.inbox ? "mailbot.py is answering RFQ emails." : "mailbot.py is not running."} />
@@ -48,6 +50,23 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
           </>
         ) : (
           <p className="p-3 text-sm text-muted">Loading…</p>
+        )}
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">Mail login</h2>
+            <p className="text-sm text-muted">Signs in to the team inbox and the mail server with BOT_EMAIL / BOT_PASSWORD. Nothing is sent.</p>
+          </div>
+          <Button onClick={async () => { setMailBusy(true); try { setMail(await api.mailTest()); } catch (e) { setMail({ ok: false, detail: String((e as Error).message) }); } finally { setMailBusy(false); } }} disabled={mailBusy}>
+            {mailBusy && <Loader2 size={16} className="animate-spin" aria-hidden />} Test mail login
+          </Button>
+        </div>
+        {mail && (
+          <div aria-live="polite" className={`rounded-md p-3 text-sm ${mail.ok ? "bg-success-bg text-success" : "bg-danger-bg text-danger"}`}>
+            {mail.ok ? "Mail login works: the bot can read the inbox and send replies." : mail.detail}
+          </div>
         )}
       </Card>
 

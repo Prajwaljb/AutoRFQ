@@ -39,3 +39,11 @@ export function severityTone(severity: string): Tone {
   if (severity === "low") return "info";
   return "neutral";
 }
+
+/** Severity in plain words (the badges never show "low/medium/high" alone). */
+export function severityLabel(severity: string): string {
+  if (severity === "high") return "Must check";
+  if (severity === "medium") return "Check";
+  if (severity === "low") return "Blank";
+  return "Info";
+}

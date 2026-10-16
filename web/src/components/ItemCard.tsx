@@ -1,4 +1,4 @@
-import { Flag as FlagIcon, ImageOff } from "lucide-react";
+import { Flag as FlagIcon, ImageOff, Tag } from "lucide-react";
 import type { Item } from "../lib/types";
 import { availability, money, pictureOf } from "../lib/format";
 import { LookupBadge } from "./StatusBadge";
@@ -18,7 +18,10 @@ export function ItemCard({ item, flags, onOpen, delay = 0 }: { item: Item; flags
           {picture ? (
             <img src={picture} alt="" loading="lazy" className="h-full w-full object-contain p-2" />
           ) : (
-            <ImageOff className="text-slate-400" aria-hidden />
+            <div className="flex flex-col items-center gap-1 text-slate-400">
+              {item.kind === "code" ? <Tag aria-hidden /> : <ImageOff aria-hidden />}
+              <span className="text-xs font-medium">{item.kind === "code" ? (item.brand ? `${item.brand} part` : "Other brand's part") : "Not in any source"}</span>
+            </div>
           )}
         </div>
         <div className="flex flex-1 flex-col gap-2 p-3">
@@ -53,6 +56,11 @@ export function ItemCard({ item, flags, onOpen, delay = 0 }: { item: Item; flags
           ) : (
             <>
               <p className="text-sm text-muted">{item.reason || "Not found in any source."}</p>
+              {item.extra?.described_as && item.extra?.described_from?.startsWith("web") && (
+                <p className="text-xs text-muted">
+                  <span className="font-semibold text-text">Found on the web:</span> {item.extra.described_as.slice(0, 110)}
+                </p>
+              )}
               {item.extra?.alternatives?.length ? (
                 <p className="mt-auto rounded-md bg-info-bg px-2 py-1.5 text-xs text-info">
                   Closest Ferguson match: <span className="font-mono font-semibold">{item.extra.alternatives[0].product_id}</span>{" "}

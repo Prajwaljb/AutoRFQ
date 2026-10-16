@@ -107,25 +107,40 @@ class FakeLLM:
 
 def found_result():
     r = RunResult("r", "e.eml", "offline")
-    r.items.append(item(Description="6 in x 1000 ft Blue", Length="1000 ft", Width="6 in", Thickness="5 mil",
-                        Material="Plastic", Color_Finish="Blue"))
+    r.items.append(item(Description="6 in x 1000 ft Detector Tape", Length="1000 ft", Width="6 in",
+                        Thickness="5 mil", Material="Plastic", Color_Finish="Blue",
+                        Lettering="Caution Buried Gas Line Below"))
     return r
 
 
-def test_ai_is_advisory_and_grounded(monkeypatch):
+def test_ai_is_advisory_grounded_and_verified(monkeypatch):
     r = found_result()
     fake = FakeLLM({"flags": [
-        {"column": "Thickness", "issue": "Thin for detectable tape", "severity": "high", "quoted_value": "5 mil"},
-        {"column": "Width", "issue": "invented", "severity": "high", "quoted_value": "4 in"},  # not grounded
+        # a real contradiction (gas lettering on blue tape): kept, as advisory
+        {"column": "Lettering", "issue": "Gas lettering on blue tape", "severity": "high",
+         "quoted_value": "Caution Buried Gas Line Below", "conflicts_with": "Color Finish"},
+        # not grounded: the quoted value is not the cell's value
+        {"column": "Width", "issue": "invented", "severity": "high", "quoted_value": "4 in", "conflicts_with": "Description"},
+        # code verifies and rejects: blue is named in the colour itself
+        {"column": "Color Finish", "issue": "odd", "severity": "high", "quoted_value": "Blue", "conflicts_with": "Color Finish"},
+        # hedged, and about a descriptive column: dropped
+        {"column": "Material", "issue": "may be wrong", "severity": "medium", "quoted_value": "Plastic", "conflicts_with": "Description"},
     ]})
     monkeypatch.setattr(llm, "enabled", lambda: True)
     monkeypatch.setattr(llm, "_client", lambda: fake)
     quality.run(r)
-    assert r.status == RunStatus.READY  # an AI high flag never holds the RFQ
-    assert [(f.column, f.origin) for f in r.ai_suggestions] == [("Thickness", "ai")]
-    assert r.items[0].cells["Thickness"].value == "5 mil"
+    assert r.status == RunStatus.READY  # a model flag never holds the RFQ
+    assert [(f.column, f.origin, f.severity) for f in r.ai_suggestions] == [("Lettering", "ai", "medium")]
+    assert r.items[0].cells["Lettering"].value == "Caution Buried Gas Line Below"
     sent = json.loads(fake.calls[0]["messages"][1]["content"])
     assert set(sent) == {"product_id", "row"}  # product data only, never the email
+
+
+def test_model_claim_that_code_disproves_is_dropped():
+    it = item(Description="6 in x 1000 ft Purple Detector Tape", Lettering="Caution Buried Reclaimed Water Line Below",
+              Color_Finish="Purple", Application="Reclaimed Water|Marking")
+    assert not llm.verified(it, "Lettering", "Color Finish", set())  # purple IS reclaimed water (APWA)
+    assert not llm.verified(it, "Lettering", "Application", set())   # both say reclaimed
 
 
 @pytest.mark.parametrize("fake", [FakeLLM(error=TimeoutError("slow")), FakeLLM(reply="not json")])
@@ -153,8 +168,8 @@ def test_fill_rate_and_request_lines():
     r.items[0].qty = "10 rolls"
     r.items[0].extra = {"Price (USD)": "139.02", "Availability": "OutOfStock"}
     overall, by_column = summary.fill_rates(r)
-    assert overall == round(100 * 6 / len(summary.FILL_COLUMNS), 1)
-    assert summary.product_fill(r)[0][2:4] == (6, len(summary.FILL_COLUMNS))
+    assert overall == round(100 * 7 / len(summary.FILL_COLUMNS), 1)
+    assert summary.product_fill(r)[0][2:4] == (7, len(summary.FILL_COLUMNS))
     lines, total = summary.request_lines(r)
     assert lines[0][4] == 1390.2 and total == 1390.2
     assert any("Out of stock" in a for _, a in summary.alerts(r))

@@ -2,7 +2,7 @@ import { ExternalLink } from "lucide-react";
 import type { Flag, Item } from "../lib/types";
 import { availability, firstUrl, money, sourceLabel } from "../lib/format";
 import { screenshotUrl } from "../lib/api";
-import { severityTone } from "../lib/status";
+import { severityLabel, severityTone } from "../lib/status";
 import { LookupBadge } from "./StatusBadge";
 import { Badge, Sheet } from "./ui/primitives";
 import { Button } from "./ui/button";
@@ -62,7 +62,7 @@ export function SourceSheet({
         <div className="mb-4 space-y-2">
           {flags.map((f) => (
             <div key={f.id} className="rounded-md border border-border bg-surface-2 p-2 text-sm">
-              <Badge tone={severityTone(f.severity)}>{f.severity}</Badge> <span className="font-medium">{f.column}</span>: {f.issue}
+              <Badge tone={severityTone(f.severity)}>{severityLabel(f.severity)}</Badge> <span className="font-medium">{f.column}</span>: {f.issue}
             </div>
           ))}
         </div>

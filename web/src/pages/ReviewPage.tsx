@@ -5,7 +5,7 @@ import { api, ApiError } from "../lib/api";
 import type { ReviewFlag, ReviewState, Run, RunDetail } from "../lib/types";
 import { sortFlags } from "../lib/sort";
 import { sourceLabel } from "../lib/format";
-import { severityTone } from "../lib/status";
+import { severityLabel, severityTone } from "../lib/status";
 import { Button } from "../components/ui/button";
 import { Badge, Card, Dialog, ErrorBox, Skeleton } from "../components/ui/primitives";
 import { cn } from "../components/ui/cn";
@@ -155,7 +155,7 @@ export function ReviewPage() {
                   onClick={() => setSelected(i)}
                   className={cn("flex w-full items-start gap-3 p-3 text-left text-sm", i === selected ? "bg-surface-2" : "hover:bg-surface-2")}
                 >
-                  <Badge tone={severityTone(f.severity)}>{f.severity}</Badge>
+                  <Badge tone={severityTone(f.severity)}>{severityLabel(f.severity)}</Badge>
                   <span className="min-w-0 flex-1">
                     <span className="font-mono text-xs text-muted">{f.product_id}</span>
                     <span className="block font-medium">{f.column}</span>
@@ -194,7 +194,7 @@ export function ReviewPage() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-lg font-semibold">{item.product_id}</span>
-                <Badge tone={severityTone(current.severity)}>{current.severity}</Badge>
+                <Badge tone={severityTone(current.severity)}>{severityLabel(current.severity)}</Badge>
                 <Badge>{current.rule.replaceAll("_", " ")}</Badge>
               </div>
               <p className="text-sm text-muted">{item.description}</p>

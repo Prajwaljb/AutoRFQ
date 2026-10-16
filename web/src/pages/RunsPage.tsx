@@ -34,10 +34,10 @@ function Hero({ runs }: { runs: RunSummary[] }) {
   const done = runs.filter((r) => r.status !== "processing");
   const items = done.reduce((n, r) => n + r.items, 0);
   const found = done.reduce((n, r) => n + r.found, 0);
-  const withFill = done.filter((r) => r.found > 0);
+  const withFill = done.filter((r) => r.found > 0 && r.fill_rate > 0);
   const fill = withFill.length ? withFill.reduce((n, r) => n + (r.fill_rate || 0), 0) / withFill.length : 0;
   const flagged = done.reduce((n, r) => n + r.flags, 0);
-  const hours = (items * 6) / 60;
+  const notFound = done.reduce((n, r) => n + r.not_found, 0);
   return (
     <section className="glass fade-up relative overflow-hidden rounded-2xl border border-border p-6 md:p-8">
       <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" aria-hidden />
@@ -62,7 +62,7 @@ function Hero({ runs }: { runs: RunSummary[] }) {
           <Stat label="RFQs processed" value={done.length} hint={`${runs.filter((r) => r.status === "needs_review").length} waiting for review`} />
           <Stat label="Items found" value={found} hint={`of ${items} requested`} />
           <Stat label="Avg fill rate" value={fill} decimals={1} suffix="%" hint="spec cells with a sourced value" />
-          <Stat label="Hours saved" value={hours} decimals={1} hint={`${flagged} values flagged for review`} />
+          <Stat label="Values flagged" value={flagged} hint={`${notFound} not found items, with alternatives`} />
         </div>
       </div>
       <PipelineStrip className="relative mt-8" />

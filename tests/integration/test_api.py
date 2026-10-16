@@ -132,3 +132,8 @@ def test_function_app_wraps_the_api(monkeypatch):
     assert os.environ["RFQ_MODE"] in ("", "no-browser")
     [fn] = function_app.app.get_functions()
     assert fn.get_bindings()[0].route == "/{*route}"
+
+
+def test_mail_test_without_credentials(client):
+    r = client.post("/api/mail/test").json()
+    assert r["ok"] is False and "not set" in r["detail"]
