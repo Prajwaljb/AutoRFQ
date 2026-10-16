@@ -191,6 +191,12 @@ def substitute(run_dir, requested, alternative, reviewer):
         cells = catalog.lookup(alternative)
         if not cells:
             raise ReviewError(f"{alternative} is not in the catalog.")
+        if item.kind == "code":
+            try:
+                from rfq.infra.productdb import ProductDB
+                ProductDB().confirm_crossref(requested, alternative, reviewer.strip())
+            except Exception:
+                pass
         item.product_id, item.kind, item.cells = alternative, "ferguson", cells
         item.extra = {**catalog.extra(alternative), "replaces": requested}
         item.lookup_status, item.found_via, item.reason = "Found", "catalog", ""

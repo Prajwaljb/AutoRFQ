@@ -34,7 +34,8 @@ def products(q: str = "", limit: int = 200):
     db = ProductDB()
     return {"stats": {**db.stats(), "token_required": bool(os.environ.get("ADMIN_TOKEN", "").strip()),
                       "now": time.time()},
-            "products": [_summary(r) for r in db.list(q.strip(), max(1, min(limit, 1000)))]}
+            "products": [_summary(r) for r in db.list(q.strip(), max(1, min(limit, 1000)))],
+            "crossrefs": db.list_crossrefs()}
 
 
 @router.get("/products/{product_id}")

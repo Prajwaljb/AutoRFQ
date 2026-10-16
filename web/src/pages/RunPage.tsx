@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Download, FileText, LayoutGrid, List, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
 import { api, fileUrl, subscribeEvents } from "../lib/api";
 import type { Flag, Item, PipelineEvent, Run, RunDetail } from "../lib/types";
-import { availability, estimatedTotal, money, senderLabel, sourceLabel } from "../lib/format";
+import { availability, money, senderLabel, sourceLabel } from "../lib/format";
 import { severityLabel, severityTone, statusInfo } from "../lib/status";
 import { StatusBadge, LookupBadge } from "../components/StatusBadge";
 import { ItemCard, ItemCardSkeleton } from "../components/ItemCard";
@@ -209,7 +209,6 @@ export function RunPage() {
   const status = s.status;
   const xlsx = detail.files.find((f) => f.endsWith(".xlsx"));
   const canSend = detail.mail_configured && s.source === "inbox";
-  const total = estimatedTotal(items);
   const durations = events.length > 1 ? (Number(events[events.length - 1].ts) - Number(events[0].ts)) : 0;
 
   async function approve(send: boolean) {
@@ -338,14 +337,13 @@ export function RunPage() {
           <Card className="flex items-center justify-center p-4">
             <FillRing value={run.counts.fill_rate ?? 0} />
           </Card>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <Kpi label="Items" value={<CountUp value={run.counts.items} />} />
             <Kpi label="Found" value={<CountUp value={run.counts.found} />}
               hint={`live ${run.counts.by_source.live} · catalog ${run.counts.by_source.catalog}`} />
             <Kpi label="Not found" value={<CountUp value={run.counts.not_found} />} />
             <Kpi label="To check" value={<CountUp value={run.counts.flags} />} hint={run.counts.high_flags ? `${run.counts.high_flags} high` : "none high"} />
             <Kpi label="Units standardised" value={<CountUp value={run.units_converted ?? 0} />} />
-            <Kpi label="Est. value" value={total ? <CountUp value={total} decimals={2} prefix="$" /> : "—"} hint={total ? "price × qty" : "no quantities"} />
           </div>
         </div>
       )}

@@ -104,12 +104,15 @@ def _unmatched(result):
         options = item.extra.get("alternatives") or []
         if options:
             best = options[0]
-            step = (f"Closest Ferguson match: {best['product_id']} ({best['description']}{_price_text(best)}). "
+            label = {"confirmed": "Our usual equivalent", "strong": "Closest Ferguson match"}.get(
+                best.get("confidence", ""), "A possible Ferguson match")
+            step = (f"{label}: {best['product_id']} ({best['description']}{_price_text(best)}). "
                     f"Reply \"use {best['product_id']}\" to add it, or send the item number you need.")
             if len(options) > 1:
                 step += f" Also similar: {', '.join(o['product_id'] for o in options[1:])}."
         elif item.kind == CODE:
-            step = "Reply with the Ferguson item number, or the size and colour, and we will find an equivalent."
+            step = (f"We couldn't identify {item.product_id}. Please reply with its size, colour and use "
+                    "(for example 6 in x 1000 ft, yellow, gas line) or the Ferguson item number, and we will add it.")
         else:
             step = "Please check the number, or reply with the Ferguson item number."
         out.append((item, reason, step))

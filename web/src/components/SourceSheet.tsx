@@ -102,7 +102,28 @@ export function SourceSheet({
       ) : (
         <div className="space-y-3 text-sm">
           <p className="text-muted">Blank means unknown: nothing is guessed for an item we could not find.</p>
-          {item.extra?.described_as && (
+          {item.extra?.competitor && (
+            <div className="rounded-md border border-border p-3">
+              <h3 className="mb-2 font-semibold">What the web says about {item.brand ? `${item.brand} ` : ""}{item.product_id}</h3>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                {Object.entries(item.extra.competitor.specs).map(([name, spec]) => (
+                  <div key={name} className="contents">
+                    <dt className="text-muted">{name}</dt>
+                    <dd>
+                      {spec.value}{" "}
+                      {spec.source && (
+                        <a href={spec.source} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-xs text-primary underline">
+                          {new URL(spec.source).hostname.replace("www.", "")} <ExternalLink size={10} aria-hidden />
+                        </a>
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-2 text-xs text-muted">Only pages that name this exact part are used. These specs pick the Ferguson equivalent; they are not put on the RFQ.</p>
+            </div>
+          )}
+          {item.extra?.described_as && !item.extra?.competitor && (
             <p>
               <span className="text-muted">Described as:</span> “{item.extra.described_as}”{" "}
               <span className="text-xs text-muted">({item.extra.described_from})</span>
@@ -116,7 +137,12 @@ export function SourceSheet({
                   <li key={alt.product_id} className="rounded-md border border-border p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <span className="font-mono font-semibold">{alt.product_id}</span> {alt.description}
+                        <span className="font-mono font-semibold">{alt.product_id}</span> {alt.description}{" "}
+                        {alt.confidence && (
+                          <Badge tone={alt.confidence === "possible" ? "neutral" : "success"}>
+                            {alt.confidence === "confirmed" ? "usual equivalent" : `${alt.confidence} match`}
+                          </Badge>
+                        )}
                         <p className="mt-1 text-xs text-muted">
                           Matches {alt.matched.join(", ")} · {money(alt.price) || "price on request"} · {availability(alt.availability)}
                         </p>
@@ -133,7 +159,7 @@ export function SourceSheet({
               <p className="mt-2 text-xs text-muted">Not added unless you choose one. The reply asks the customer to confirm a replacement.</p>
             </div>
           ) : (
-            <p className="text-muted">No close Ferguson alternative: the request doesn't say enough about this item (size, colour, utility).</p>
+            <p className="text-muted">No close Ferguson alternative: neither the request nor the web says what this item is (size, colour, use). The reply asks the customer.</p>
           )}
         </div>
       )}

@@ -34,8 +34,9 @@ INCLUDE = ["app", "rfq", "data", "templates", "reference", "emails", "mailbot.py
 FUNCTION_FILES = ["function_app.py", "host.json"]
 SKIP_PARTS = {"__pycache__", ".pytest_cache", "node_modules"}
 STARTUP = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
-SECRET_KEYS = ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION",
-               "BOT_EMAIL", "BOT_PASSWORD", "REVIEW_NOTIFY_EMAIL"]
+SECRET_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY",
+               "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION", "BOT_EMAIL", "BOT_PASSWORD",
+               "REVIEW_NOTIFY_EMAIL", "SERPAPI_API_KEY", "ADMIN_TOKEN", "RFQ_DB_TTL_HOURS"]
 
 
 def az(*args, check=True, capture=True):

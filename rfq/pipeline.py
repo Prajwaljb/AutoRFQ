@@ -34,7 +34,8 @@ def lookup_order(items):
 
 def _not_found_reason(item, mode, catalog):
     if item.kind == CODE:
-        who = f"a {item.brand} part number" if item.brand else "not a Ferguson item number"
+        article = "an" if item.brand[:1].lower() in "aeiou" else "a"
+        who = f"{article} {item.brand} part number" if item.brand else "not a Ferguson item number"
         return f"This is {who}; we only quote Ferguson item numbers."
     where = "on ferguson.com or in our catalog" if mode == config.LIVE else "in our catalog"
     reason = f"We could not find item {item.product_id} {where}."
@@ -47,7 +48,13 @@ def _not_found_reason(item, mode, catalog):
 
 def suggest_alternatives(result, catalog, mode, logger=None, events=None):
     """Closest Ferguson products for every Not found item. Suggestions only: the RFQ row stays Not found."""
-    finder = Alternatives(catalog, web=mode != config.OFFLINE, logger=logger)
+    db = None
+    if mode != config.OFFLINE:
+        try:
+            db = ProductDB()
+        except Exception:
+            db = None
+    finder = Alternatives(catalog, web=mode != config.OFFLINE, logger=logger, db=db)
     for item in result.items:
         if item.found:
             continue
@@ -57,8 +64,15 @@ def suggest_alternatives(result, catalog, mode, logger=None, events=None):
         if origin.startswith("Ferguson's earlier listing"):
             item.reason = f"Item {item.product_id} ({text}) is no longer listed by Ferguson."
             result.add_note(item, "lookup", f"Ferguson listed this item earlier as \"{text}\"; it is no longer listed.")
+        elif item.kind == CODE and item.extra.get("competitor"):
+            info = item.extra["competitor"]
+            if info.get("description"):
+                item.reason += f" The web lists it as: {info['description']}."
+                result.add_note(item, "lookup", f"Competitor specs from the web: {info['description']} "
+                                                f"(sources: {', '.join(info.get('sources', [])[:3])}).")
         elif item.kind == CODE and not text:
-            item.reason += " The request gives no size or colour for it."
+            item.reason += (" Neither the request nor the web says what it is (no size, colour or use), so we "
+                            "don't guess.")
         if not options:
             continue
         item.extra["alternatives"] = options

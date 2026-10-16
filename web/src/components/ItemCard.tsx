@@ -56,15 +56,16 @@ export function ItemCard({ item, flags, onOpen, delay = 0 }: { item: Item; flags
           ) : (
             <>
               <p className="text-sm text-muted">{item.reason || "Not found in any source."}</p>
-              {item.extra?.described_as && item.extra?.described_from?.startsWith("web") && (
-                <p className="text-xs text-muted">
-                  <span className="font-semibold text-text">Found on the web:</span> {item.extra.described_as.slice(0, 110)}
+              {item.extra?.competitor?.description && (
+                <p className="rounded-md border border-border px-2 py-1.5 text-xs text-muted">
+                  <span className="font-semibold text-text">The web says:</span> {item.extra.competitor.description}
+                  <span className="block opacity-80">{item.extra.competitor.sources.length} source{item.extra.competitor.sources.length === 1 ? "" : "s"}</span>
                 </p>
               )}
               {item.extra?.alternatives?.length ? (
                 <p className="mt-auto rounded-md bg-info-bg px-2 py-1.5 text-xs text-info">
-                  Closest Ferguson match: <span className="font-mono font-semibold">{item.extra.alternatives[0].product_id}</span>{" "}
-                  {item.extra.alternatives[0].description}
+                  {item.extra.alternatives[0].confidence === "confirmed" ? "Usual equivalent" : item.extra.alternatives[0].confidence === "strong" ? "Strong match" : "Possible match"}:{" "}
+                  <span className="font-mono font-semibold">{item.extra.alternatives[0].product_id}</span> {item.extra.alternatives[0].description}
                 </p>
               ) : (
                 <p className="mt-auto text-xs text-muted">

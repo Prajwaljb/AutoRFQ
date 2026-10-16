@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Database, Loader2, RefreshCw, Search, Sprout, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
-import type { DbProduct, DbStats } from "../lib/types";
+import type { Crossref, DbProduct, DbStats } from "../lib/types";
 import { ago, availability, money } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Badge, Card, Dialog, EmptyState, ErrorBox, Skeleton } from "../components/ui/primitives";
@@ -22,6 +22,7 @@ function token(stats: DbStats | null): string | null {
 export function AdminPage() {
   const [stats, setStats] = useState<DbStats | null>(null);
   const [products, setProducts] = useState<DbProduct[] | null>(null);
+  const [crossrefs, setCrossrefs] = useState<Crossref[]>([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -32,6 +33,7 @@ export function AdminPage() {
     api.adminProducts(query).then((r) => {
       setStats(r.stats);
       setProducts(r.products);
+      setCrossrefs(r.crossrefs ?? []);
       setError("");
     }).catch((e) => setError(String(e.message ?? e)));
   }, [q]);
@@ -138,6 +140,37 @@ export function AdminPage() {
         {stats && <p className="mt-3 text-xs text-muted">Stored in <code className="font-mono">{stats.path}</code> (SQLite). For more scale, the same functions can sit on a server database.</p>}
       </Card>
 
+      <Card className="p-4">
+        <h2 className="font-semibold">Competitor cross-reference ({crossrefs.length})</h2>
+        <p className="mb-3 text-sm text-muted">Other brands' codes the finder has looked up, and the Ferguson item a reviewer chose for them. Looked up once, reused for 30 days (confirmed ones always).</p>
+        {crossrefs.length === 0 ? (
+          <p className="text-sm text-muted">None yet. Run an RFQ with competitor codes (email 3) in live or no-browser mode.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-3 py-2">Code</th><th className="px-3 py-2">Brand</th><th className="px-3 py-2">What it is (web)</th>
+                  <th className="px-3 py-2">Ferguson equivalent</th><th className="px-3 py-2">Looked up</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {crossrefs.map((c) => (
+                  <tr key={c.code}>
+                    <td className="px-3 py-2 font-mono">{c.code}</td>
+                    <td className="px-3 py-2">{c.brand || "—"}</td>
+                    <td className="px-3 py-2">{c.known ? c.description : <span className="text-muted">Nothing found on the web</span>}
+                      {c.sources[0] && <a href={c.sources[0]} target="_blank" rel="noreferrer" className="ml-1 text-xs text-primary underline">source</a>}</td>
+                    <td className="px-3 py-2">{c.confirmed ? <><span className="font-mono">{c.confirmed}</span> <Badge tone="success">confirmed by {c.confirmed_by}</Badge></> : <span className="text-muted">suggested per RFQ</span>}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted">{ago(c.updated_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <Dialog open={confirm} onClose={() => setConfirm(false)} title="Clear the product database?"
         footer={<>
           <Button onClick={() => setConfirm(false)}>Cancel</Button>
@@ -145,7 +178,7 @@ export function AdminPage() {
             {busy && <Loader2 size={16} className="animate-spin" aria-hidden />} Clear {stats?.products} products
           </Button>
         </>}>
-        <p className="text-sm">All stored products are removed. RFQs already built keep their Excel files. The next live run looks every item up again: use this to simulate a first run.</p>
+        <p className="text-sm">All stored products and competitor cross-references are removed. RFQs already built keep their Excel files. The next live run looks every item up again: use this to simulate a first run.</p>
       </Dialog>
     </div>
   );

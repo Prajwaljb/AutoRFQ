@@ -1,4 +1,4 @@
-import type { DbProduct, DbStats, Health, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
+import type { Crossref, DbProduct, DbStats, Health, PipelineEvent, ReviewState, RunDetail, RunSummary, Sample } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -64,7 +64,7 @@ export const api = {
   send: (id: string) =>
     request<{ status: string; sent_to: string }>(`/api/runs/${encodeURIComponent(id)}/send`, { method: "POST" }),
   adminProducts: (q = "") =>
-    request<{ stats: DbStats; products: DbProduct[] }>(`/api/admin/products?q=${encodeURIComponent(q)}`),
+    request<{ stats: DbStats; products: DbProduct[]; crossrefs: Crossref[] }>(`/api/admin/products?q=${encodeURIComponent(q)}`),
   adminClear: (token = "") =>
     request<{ cleared: number }>("/api/admin/clear-db", { method: "POST", headers: { "X-Admin-Token": token } }),
   adminSeed: (token = "") =>

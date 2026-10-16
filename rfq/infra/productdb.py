@@ -32,7 +32,16 @@ CREATE TABLE IF NOT EXISTS products (
     hits         INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS products_source ON products(source);
+CREATE TABLE IF NOT EXISTS crossrefs (
+    code         TEXT PRIMARY KEY,         -- competitor / customer code, upper case
+    brand        TEXT NOT NULL DEFAULT '',
+    info         TEXT,                     -- JSON from the competitor finder; NULL = the web knows nothing
+    confirmed    TEXT NOT NULL DEFAULT '', -- Ferguson item a reviewer chose for it
+    confirmed_by TEXT NOT NULL DEFAULT '',
+    updated_at   REAL NOT NULL
+);
 """
+CROSSREF_DAYS = 30
 _lock = threading.Lock()
 
 
@@ -96,7 +105,8 @@ class ProductDB:
             by_source = dict(db.execute("SELECT source, COUNT(*) FROM products GROUP BY source").fetchall())
             hits = db.execute("SELECT COALESCE(SUM(hits), 0) FROM products").fetchone()[0]
             last = db.execute("SELECT MAX(updated_at) FROM products").fetchone()[0]
-        return {"products": total, "by_source": by_source, "reused": hits, "last_updated": last,
+            crossrefs = db.execute("SELECT COUNT(*) FROM crossrefs").fetchone()[0]
+        return {"products": total, "by_source": by_source, "reused": hits, "last_updated": last, "crossrefs": crossrefs,
                 "path": str(self.path), "ttl_hours": ttl_hours()}
 
     # writes -----------------------------------------------------------------------------------------
@@ -135,10 +145,49 @@ class ProductDB:
             added += 1
         return added
 
+    # competitor cross-references -----------------------------------------------------------------------
+    def get_crossref(self, code, max_age_days=CROSSREF_DAYS):
+        """The saved finding for a code (dict with "confirmed"), {} when the web knew nothing, None if unseen."""
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM crossrefs WHERE code = ?", (code.upper(),)).fetchone()
+        if not row or (not row["confirmed"] and time.time() - row["updated_at"] > max_age_days * 86400):
+            return None
+        info = json.loads(row["info"]) if row["info"] else {}
+        if row["confirmed"]:
+            info = {**info, "confirmed": row["confirmed"], "confirmed_by": row["confirmed_by"]}
+        return info
+
+    def save_crossref(self, code, brand, info):
+        with _lock, self._connect() as db:
+            db.execute("INSERT INTO crossrefs (code, brand, info, updated_at) VALUES (?, ?, ?, ?) "
+                       "ON CONFLICT(code) DO UPDATE SET brand = excluded.brand, info = excluded.info, "
+                       "updated_at = excluded.updated_at",
+                       (code.upper(), brand or "", json.dumps(info, ensure_ascii=False) if info else None, time.time()))
+
+    def confirm_crossref(self, code, ferguson_id, reviewer):
+        """A reviewer chose a Ferguson item for a competitor code: suggested first next time."""
+        with _lock, self._connect() as db:
+            db.execute("INSERT INTO crossrefs (code, confirmed, confirmed_by, updated_at) VALUES (?, ?, ?, ?) "
+                       "ON CONFLICT(code) DO UPDATE SET confirmed = excluded.confirmed, "
+                       "confirmed_by = excluded.confirmed_by, updated_at = excluded.updated_at",
+                       (code.upper(), ferguson_id, reviewer, time.time()))
+
+    def list_crossrefs(self):
+        with self._connect() as db:
+            rows = db.execute("SELECT * FROM crossrefs ORDER BY updated_at DESC").fetchall()
+        out = []
+        for r in rows:
+            info = json.loads(r["info"]) if r["info"] else {}
+            out.append({"code": r["code"], "brand": r["brand"], "description": info.get("description", ""),
+                        "sources": info.get("sources", []), "known": bool(info), "confirmed": r["confirmed"],
+                        "confirmed_by": r["confirmed_by"], "updated_at": r["updated_at"]})
+        return out
+
     def clear(self):
         with _lock, self._connect() as db:
             n = db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
             db.execute("DELETE FROM products")
+            db.execute("DELETE FROM crossrefs")
         return n
 
 

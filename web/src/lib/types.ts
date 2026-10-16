@@ -49,7 +49,35 @@ export interface Item {
   reason: string;
   description: string;
   cells: Record<string, Cell>;
-  extra: Record<string, string> & { alternatives?: Alternative[]; described_as?: string; described_from?: string; replaces?: string };
+  extra: Record<string, string> & {
+    alternatives?: Alternative[];
+    described_as?: string;
+    described_from?: string;
+    replaces?: string;
+    competitor?: Competitor;
+  };
+}
+
+export interface Competitor {
+  code: string;
+  brand: string;
+  description: string;
+  title?: string;
+  specs: Record<string, { value: string; source: string }>;
+  sources: string[];
+  confirmed?: string;
+  confirmed_by?: string;
+}
+
+export interface Crossref {
+  code: string;
+  brand: string;
+  description: string;
+  sources: string[];
+  known: boolean;
+  confirmed: string;
+  confirmed_by: string;
+  updated_at: number;
 }
 
 export interface Alternative {
@@ -57,6 +85,7 @@ export interface Alternative {
   description: string;
   score: number;
   matched: string[];
+  confidence?: "confirmed" | "strong" | "possible";
   price: string;
   availability: string;
 }
@@ -177,6 +206,7 @@ export interface DbStats {
   last_updated: number | null;
   path: string;
   ttl_hours: number;
+  crossrefs: number;
   token_required: boolean;
   now: number;
 }

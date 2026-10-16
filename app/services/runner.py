@@ -42,6 +42,18 @@ def command(eml, mode, out=None):
     return cmd
 
 
+def child_env():
+    """The environment for build.py. On Azure Functions the packages live on the worker's sys.path only
+    (.python_packages), so the subprocess gets that path explicitly."""
+    import os
+    env = dict(os.environ)
+    paths = [p for p in sys.path if p]
+    if env.get("PYTHONPATH"):
+        paths.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(paths))
+    return env
+
+
 def _work(run_id, eml, mode):
     lock = _live_lock if mode == config.LIVE else None
     try:
@@ -49,7 +61,7 @@ def _work(run_id, eml, mode):
             lock.acquire()
         _set(run_id, state="processing", started=time.time())
         proc = subprocess.run(command(eml, mode), cwd=settings.ROOT, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=settings.BUILD_TIMEOUT)
+                              encoding="utf-8", errors="replace", timeout=settings.BUILD_TIMEOUT, env=child_env())
         if proc.returncode == 0:
             _set(run_id, state="done", output=proc.stdout.strip())
         else:
@@ -76,4 +88,4 @@ def start(eml, mode):
 def run_sync(eml, mode, out):
     """A blocking build (self-check)."""
     return subprocess.run(command(eml, mode, out), cwd=settings.ROOT, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=settings.BUILD_TIMEOUT)
+                          encoding="utf-8", errors="replace", timeout=settings.BUILD_TIMEOUT, env=child_env())

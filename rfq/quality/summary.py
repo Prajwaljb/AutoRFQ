@@ -215,10 +215,26 @@ def add_sheet(wb, result):
         if not item.found:
             for o in item.extra.get("alternatives") or []:
                 alt_rows.append((item.product_id, o["product_id"], o["description"], ", ".join(o["matched"]),
-                                 _money(o.get("price", "")), o.get("availability", "")))
+                                 o.get("confidence", ""), _money(o.get("price", "")), o.get("availability", "")))
+    comp_rows = []
+    for item in result.items:
+        info = item.extra.get("competitor") if not item.found else None
+        if info:
+            specs = info.get("specs", {})
+            best = (item.extra.get("alternatives") or [{}])[0]
+            for name, spec in specs.items():
+                comp_rows.append((item.product_id, item.brand, name, spec.get("value", ""), spec.get("source", ""),
+                                  best.get("product_id", ""), best.get("confidence", "")))
+        elif not item.found and item.kind == "code":
+            comp_rows.append((item.product_id, item.brand, "", "Nothing found: ask the customer for size, colour, use",
+                              "", "", ""))
+    if comp_rows:
+        row = _section(ws, row, "Competitor cross-reference (from the web; every value cites its page; not on the RFQ)")
+        row = _table(ws, row, ["Requested", "Brand", "Spec", "Value", "Source", "Ferguson equivalent", "Match"],
+                     comp_rows)
     if alt_rows:
         row = _section(ws, row, "Suggested Ferguson alternatives (not on the RFQ until the customer confirms)")
-        row = _table(ws, row, ["Requested", "Ferguson item", "Description", "Matches", "Unit price (USD)",
+        row = _table(ws, row, ["Requested", "Ferguson item", "Description", "Matches", "Match", "Unit price (USD)",
                                "Availability"], alt_rows)
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "A2"

@@ -77,7 +77,7 @@ def test_reply_eml(offline_builds):
     assert [p.get_filename() for p in msg.iter_attachments()] == ["RFQ.xlsx"]
     text = msg.get_body(("plain",)).get_content()
     assert "Products found: 5 of 7. Not found: 2." in text
-    assert "Closest Ferguson match: 9677539 (3 in. x 1000 ft. Marking Tape in Red" in text
+    assert "A possible Ferguson match: 9677539 (3 in. x 1000 ft. Marking Tape in Red" in text
     assert 'Reply "use 5106914"' in text  # the Mutual electric detectable tape -> red electric detector tape
     for word in ("flag", "severity", "DRAFT", " AI ", "fill rate"):
         assert word.lower() not in text.lower()

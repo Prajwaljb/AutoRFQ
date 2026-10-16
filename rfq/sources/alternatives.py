@@ -10,11 +10,7 @@ colours tie a utility to a colour: electric red, gas yellow, water blue, sewer g
 reclaimed purple, force main brown). Catalog products are scored on the same attributes. A colour or tape
 kind conflict rules a product out. Ranking is deterministic: score, then product_id.
 """
-import json
-import os
 import re
-import urllib.parse
-import urllib.request
 
 from rfq import config
 
@@ -130,32 +126,12 @@ def _not_in_catalog():
         return {}
 
 
-def web_description(item, logger=None):
-    """(text, url) from a web search for the code, or ("", ""). Needs SERPAPI_API_KEY."""
-    key = os.environ.get("SERPAPI_API_KEY", "").strip()
-    if not key:
-        return "", ""
-    q = f"{item.brand} {item.product_id} tape".strip()
-    url = "https://serpapi.com/search.json?" + urllib.parse.urlencode({"q": q, "api_key": key, "num": 5})
-    try:
-        with urllib.request.urlopen(url, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        if logger:
-            logger.warning("web search for %s failed: %s", item.product_id, type(e).__name__)
-        return "", ""
-    for r in data.get("organic_results", [])[:5]:
-        text = f"{r.get('title', '')} {r.get('snippet', '')}"
-        if item.product_id.lower() in text.lower():  # only a result that names this exact part
-            return text, r.get("link", "")
-    return "", ""
-
-
 class Alternatives:
-    def __init__(self, catalog, web=False, logger=None):
+    def __init__(self, catalog, web=False, logger=None, db=None):
         self.catalog = catalog
         self.web = web
         self.logger = logger
+        self.db = db
         self.old = _not_in_catalog()
 
     def describe(self, item):
@@ -168,26 +144,40 @@ class Alternatives:
             if attributes(text):
                 return " ".join(text.split()), "the request email"
         if self.web and item.kind == "code":
-            text, url = web_description(item, self.logger)
-            if text:
-                return text, f"web search: {url}"
+            from rfq.sources import competitor
+            info = competitor.find(item, self.db, self.logger)
+            if info:
+                item.extra["competitor"] = info
+                source = (info.get("sources") or [""])[0]
+                return info.get("description", ""), f"web: {source}" if source else "a reviewer's earlier choice"
         return "", ""
 
     def suggest(self, item):
-        """Up to 3 alternatives: [{product_id, description, score, matched, price, availability}]."""
+        """Up to 3 alternatives: [{product_id, description, score, matched, confidence, price, availability}].
+
+        A Ferguson item a reviewer already confirmed for this code comes first ("confirmed"); the rest are
+        "strong" (score 8+) or "possible" matches. Never added to the RFQ by themselves.
+        """
         text, origin = self.describe(item)
+        confirmed = (item.extra.get("competitor") or {}).get("confirmed", "")
         query = attributes(text) if text else {}
-        if len([k for k in query if k != "words"]) < 2:
-            return text, origin, []
         ranked = []
-        for pid, product in self.catalog.products.items():
-            s, matched = score(query, product)
-            if s is not None and s >= MIN_SCORE:
-                ranked.append((-s, pid, matched, product))
+        if len([k for k in query if k != "words"]) >= 2:
+            for pid, product in self.catalog.products.items():
+                s, matched = score(query, product)
+                if s is not None and s >= MIN_SCORE and pid != confirmed:
+                    ranked.append((-s, pid, matched, product))
         ranked.sort()
         out = []
-        for neg, pid, matched, product in ranked[:MAX_SUGGESTIONS]:
+        if confirmed and confirmed in self.catalog.products:
+            product = self.catalog.products[confirmed]
+            by = (item.extra.get("competitor") or {}).get("confirmed_by", "a reviewer")
+            out.append({"product_id": confirmed, "description": product.get("Description", ""), "score": 99,
+                        "matched": [f"confirmed by {by}"], "confidence": "confirmed",
+                        "price": str(product.get("Price (USD)", "")), "availability": str(product.get("Availability", ""))})
+        for neg, pid, matched, product in ranked[:MAX_SUGGESTIONS - len(out)]:
             out.append({"product_id": pid, "description": product.get("Description", ""), "score": -neg,
-                        "matched": matched, "price": str(product.get("Price (USD)", "")),
+                        "matched": matched, "confidence": "strong" if -neg >= 8 else "possible",
+                        "price": str(product.get("Price (USD)", "")),
                         "availability": str(product.get("Availability", ""))})
         return text, origin, out

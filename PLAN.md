@@ -735,6 +735,41 @@ alternative.
 - **Scaling:** the same functions (`get`, `fresh_live`, `upsert`, `list`, `stats`, `clear`) can be moved to a
   server database (Postgres or Azure SQL) without touching the pipeline.
 
+## Competitor and customer codes (added 2026-10-16)
+Codes like `Mutual Industries 17783-79-3000`, `Empire 31-024` and `MTX-4409-XQ` are not Ferguson items. The
+RFQ row stays **Not found** (the spec and the reference require it), and the flow works out what the part is
+and offers a Ferguson equivalent. It never puts another brand's specs on the RFQ, and it never guesses.
+
+1. **What is it? (`rfq/sources/competitor.py`, the "Competitor Product Finder").**
+   - **Search:** SerpApi for "<brand> <code>".
+   - **Only exact matches:** only results whose title or snippet names this exact code are used.
+   - **Specs:** width, length (yards → feet: "333.33 yds." → 1000 ft), colour, detectable, utility on the
+     lettering, thickness, and a seen price. **Each value keeps the URL it came from.**
+2. **Which Ferguson item? (`sources/alternatives.py`).** Catalog products are scored on those attributes,
+   with APWA colours (electric red, water blue, …). A colour or tape-type conflict rules a product out.
+   - **Labels:** a match is *strong* (score 8+), *possible*, or *confirmed* (chosen by a reviewer before).
+3. **Results on the sample codes (live web):**
+
+   | Code | The web says | Ferguson equivalent |
+   |---|---|---|
+   | Mutual 17783-79-3000 | Electric line, non-detectable, 3 in x 1000 ft (333.33 yds), red, 4.5 mil (staples.com, mutualindustries.com) | 9677539, 3 in. x 1000 ft. Marking Tape in Red (strong) |
+   | Empire 31-024 | Water line, detectable, 6 in x 1000 ft, blue, 5 mil (porterpipe.com, crescentelectric.com) | 5106912, 6 in x 1000 ft Blue Detector Tape, water (strong) |
+   | MTX-4409-XQ | nothing: no page names it (the customer's own code) | none: the reply asks for size, colour and use |
+
+4. **Shown to people:**
+   - **Reply:** "The web lists it as … Closest Ferguson match: 9677539 … Reply "use 9677539" to add it".
+     For an unknown code it asks one specific question instead.
+   - **Excel:** the Summary's competitor cross-reference table (every spec with its source) and the
+     alternatives table with the match label.
+   - **Web app:** "The web says" on the card, the specs with their source links in the side panel, and
+     **Use instead** for a reviewer.
+5. **Remembered (product database, `crossrefs` table):**
+   - each code's finding (or "nothing known") is kept for 30 days, so it isn't searched again;
+   - a reviewer's **Use instead** confirms the Ferguson equivalent for that code, and it is suggested first,
+     as "our usual equivalent", on every later RFQ;
+   - it is visible on the Admin page and removed by Clear database.
+6. **Not in offline mode:** offline runs never search or read the cross-reference, so they stay repeatable.
+
 ## Configuration (`.env`)
 One file in the repo root, git-ignored; `.env.example` is the committed template.
 - **Who reads it:** `rfq/infra/env.py` loads it once, for `build.py`, `mailbot.py` and the web app alike. Values
