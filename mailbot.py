@@ -208,6 +208,15 @@ def check_inbox(extra_args):
                 imap.uid("STORE", uid, "+FLAGS", r"(\Seen)")
 
 
+def heartbeat():
+    """Tells the web app the inbox is being watched (out/.mailbot.json)."""
+    try:
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / ".mailbot.json").write_text(json.dumps({"email": BOT_EMAIL, "at": time.time()}), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def main():
     args = sys.argv[1:]
     once = "--once" in args
@@ -221,6 +230,7 @@ def main():
     while True:
         try:
             check_inbox(extra_args)
+            heartbeat()
         except imaplib.IMAP4.error as e:
             sys.exit(f"Gmail login failed ({e}). Check BOT_EMAIL and BOT_PASSWORD in .env.")
         except Exception as e:  # a network blip or one bad email should not stop the bot

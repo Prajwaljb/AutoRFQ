@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Ferguson palette (provisional, from the Brand Connect portal theme): navy #00446a, accent #00a0dd,
+   steel #b2c7d2, mist #e6ecf0. Status colours are semantic and always come with an icon and text. */
+:root,
+.light {
+  --background: #f3f6f8;
+  --surface: #ffffff;
+  --surface-2: #e6ecf0;
+  --border: #c9d7e0;
+  --text: #0f2230;
+  --muted: #4a6070;
+  --primary: #00446a;
+  --primary-hover: #003d5f;
+  --primary-fg: #ffffff;
+  --accent: #00a0dd;
+  --success: #166534;
+  --success-bg: #dcfce7;
+  --warning: #92400e;
+  --warning-bg: #fef3c7;
+  --danger: #9f1239;
+  --danger-bg: #ffe4e6;
+  --info: #00446a;
+  --info-bg: #e0f2fe;
+  --mark: #fef08a;
+}
+
+.dark {
+  --background: #0b1620;
+  --surface: #102231;
+  --surface-2: #15293a;
+  --border: #22405a;
+  --text: #e6ecf0;
+  --muted: #9fb3c1;
+  --primary: #00a0dd;
+  --primary-hover: #33b3e4;
+  --primary-fg: #00263b;
+  --accent: #00a0dd;
+  --success: #86efac;
+  --success-bg: #12331f;
+  --warning: #fcd34d;
+  --warning-bg: #3a2a07;
+  --danger: #fda4af;
+  --danger-bg: #3d1220;
+  --info: #7dd3fc;
+  --info-bg: #0b2d42;
+  --mark: #5c4a00;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-mark: var(--mark);
+  --color-navy: #00446a;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --radius-card: 0.625rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.fade-in {
+  animation: fade-in 180ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,86 @@
+"""Review decisions, undo, approve and send."""
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from app.services import mailer, store
+from rfq.review import state
+
+router = APIRouter(prefix="/api/runs/{run_id}")
+
+
+class Decision(BaseModel):
+    flag_id: str
+    action: str = Field(pattern="^(keep|edit|clear)$")
+    reviewer: str = Field(min_length=1, max_length=80)
+    value: str | None = None
+    version: int | None = None
+
+
+class Undo(BaseModel):
+    version: int | None = None
+
+
+class Approve(BaseModel):
+    reviewer: str = Field(min_length=1, max_length=80)
+    send: bool = False
+
+
+def _dir(run_id):
+    try:
+        return store.run_dir(run_id)
+    except store.NotFound:
+        raise HTTPException(404, "No such run.")
+
+
+@router.post("/review")
+def decide(run_id: str, body: Decision):
+    folder = _dir(run_id)
+    try:
+        state.decide(folder, body.flag_id, body.action, body.reviewer, body.value, body.version)
+    except state.Stale as e:
+        raise HTTPException(409, str(e))
+    except state.ReviewError as e:
+        raise HTTPException(400, str(e))
+    return state.view(folder)
+
+
+@router.post("/review/undo")
+def undo(run_id: str, body: Undo):
+    folder = _dir(run_id)
+    try:
+        state.undo(folder, body.version)
+    except state.Stale as e:
+        raise HTTPException(409, str(e))
+    except state.ReviewError as e:
+        raise HTTPException(400, str(e))
+    return state.view(folder)
+
+
+@router.post("/approve")
+def approve(run_id: str, body: Approve):
+    """Rebuilds the RFQ without review marks (status approved), then optionally sends the reply."""
+    folder = _dir(run_id)
+    try:
+        state.finalise(folder, body.reviewer)
+    except state.ReviewError as e:
+        raise HTTPException(400, str(e))
+    result = {"status": "approved", "sent_to": None}
+    if body.send:
+        try:
+            result["sent_to"] = mailer.send(folder)
+            result["status"] = "sent"
+        except (mailer.MailNotConfigured, mailer.SendFailed) as e:
+            result["send_error"] = str(e)
+    return result
+
+
+@router.post("/send")
+def send(run_id: str):
+    """Sends an approved RFQ (also the retry after a failed send). Never sends twice."""
+    folder = _dir(run_id)
+    try:
+        return {"status": "sent", "sent_to": mailer.send(folder)}
+    except mailer.MailNotConfigured as e:
+        raise HTTPException(400, str(e))
+    except mailer.SendFailed as e:
+        raise HTTPException(502, str(e))
