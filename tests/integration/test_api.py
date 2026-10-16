@@ -151,3 +151,23 @@ def test_admin_product_database(client, tmp_path, monkeypatch):
     assert client.post("/api/admin/clear-db").status_code == 403
     assert client.post("/api/admin/clear-db", headers={"X-Admin-Token": "s3cret"}).json()["cleared"] == 56
     assert client.get("/api/admin/products/5106912").status_code == 404
+
+
+def test_send_rules(client, monkeypatch):
+    """Uploaded RFQs never reply to their (sample) sender; a typed address is checked; held RFQs wait."""
+    from app.services import mailer
+    from app.settings import mailbot
+    sent = []
+    monkeypatch.setattr(mailbot, "BOT_EMAIL", "bot@example.com")
+    monkeypatch.setattr(mailbot, "BOT_PASSWORD", "x")
+    monkeypatch.setattr(mailer.settings, "refresh", lambda: None)
+    monkeypatch.setattr(mailbot, "send", lambda msg: sent.append(msg))
+    run_id = client.post("/api/runs", data={"sample": "email-1-ids-in-body", "mode": "offline"}).json()["id"]
+    assert wait_done(client, run_id)["status"] == "ready"
+    r = client.post(f"/api/runs/{run_id}/send", json={})
+    assert r.status_code == 400 and "uploaded" in r.json()["detail"] and sent == []
+    assert client.post(f"/api/runs/{run_id}/send", json={"to": "nope"}).status_code == 400
+    r = client.post(f"/api/runs/{run_id}/send", json={"to": "buyer@example.org"})
+    assert r.status_code == 200 and sent[0]["To"] == "buyer@example.org"
+    assert [p.get_filename() for p in sent[0].iter_attachments()] == ["RFQ.xlsx"]
+    assert client.get(f"/api/runs/{run_id}").json()["run"]["sent_to"][0]["to"] == "buyer@example.org"

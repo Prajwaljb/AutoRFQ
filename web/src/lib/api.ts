@@ -61,8 +61,8 @@ export const api = {
     ),
   substitute: (id: string, requested: string, alternative: string, reviewer: string) =>
     request<{ ok: boolean }>(`/api/runs/${encodeURIComponent(id)}/substitute`, json({ requested, alternative, reviewer })),
-  send: (id: string) =>
-    request<{ status: string; sent_to: string }>(`/api/runs/${encodeURIComponent(id)}/send`, { method: "POST" }),
+  send: (id: string, to?: string) =>
+    request<{ status: string; sent_to: string }>(`/api/runs/${encodeURIComponent(id)}/send`, json({ to: to ?? null })),
   adminProducts: (q = "") =>
     request<{ stats: DbStats; products: DbProduct[]; crossrefs: Crossref[] }>(`/api/admin/products?q=${encodeURIComponent(q)}`),
   adminClear: (token = "") =>

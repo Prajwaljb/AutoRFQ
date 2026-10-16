@@ -86,18 +86,22 @@ def approve(run_id: str, body: Approve):
         try:
             result["sent_to"] = mailer.send(folder)
             result["status"] = "sent"
-        except (mailer.MailNotConfigured, mailer.SendFailed) as e:
+        except (mailer.MailNotConfigured, mailer.SendFailed, mailer.BadRequest) as e:
             result["send_error"] = str(e)
     return result
 
 
+class SendTo(BaseModel):
+    to: str | None = Field(default=None, max_length=200)
+
+
 @router.post("/send")
-def send(run_id: str):
-    """Sends an approved RFQ (also the retry after a failed send). Never sends twice."""
+def send(run_id: str, body: SendTo | None = None):
+    """Sends the RFQ: to the customer's thread, or to the address in `to`. Never twice to the customer."""
     folder = _dir(run_id)
     try:
-        return {"status": "sent", "sent_to": mailer.send(folder)}
-    except mailer.MailNotConfigured as e:
+        return {"status": "sent", "sent_to": mailer.send(folder, body.to if body else None)}
+    except (mailer.MailNotConfigured, mailer.BadRequest) as e:
         raise HTTPException(400, str(e))
     except mailer.SendFailed as e:
         raise HTTPException(502, str(e))

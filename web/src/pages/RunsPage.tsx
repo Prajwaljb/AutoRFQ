@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Inbox, Plus, Sparkles, Upload } from "lucide-react";
+import { Inbox, Sparkles, Upload } from "lucide-react";
 import { CountUp, PipelineStrip } from "../components/fx";
 import { api } from "../lib/api";
 import { sortRuns, tabOf, type RunTab } from "../lib/sort";
@@ -56,7 +56,6 @@ function Hero({ runs }: { runs: RunSummary[] }) {
             value, then the quality agent standardises units and flags what a person should check. It flags, it never overwrites.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <LinkButton href="/new" className="btn-glow !border-0"><Plus size={16} aria-hidden /> Try a sample RFQ</LinkButton>
             <LinkButton href="/rfq"><Upload size={16} aria-hidden /> Simple upload page</LinkButton>
           </div>
         </div>
@@ -143,12 +142,7 @@ export function RunsPage() {
         <EmptyState icon={<Inbox size={28} />} title={tab === "all" ? "No RFQs yet" : "Nothing here"}>
           {tab === "all" ? (
             <>
-              Upload a request email or try a sample to see the flow.{" "}
-              <div className="mt-3">
-                <LinkButton href="/new" variant="primary" size="sm">
-                  <Plus size={16} aria-hidden /> New RFQ
-                </LinkButton>
-              </div>
+              Use <b>New RFQ</b> at the top to upload a request email or try a sample, or send an RFQ email to the team inbox.
             </>
           ) : (
             "No runs with this status."

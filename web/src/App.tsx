@@ -38,7 +38,6 @@ function ThemeToggle() {
 
 const NAV = [
   { to: "/", label: "Runs", icon: Inbox, end: true },
-  { to: "/new", label: "New RFQ", icon: Plus, end: false },
   { to: "/diagnostics", label: "Diagnostics", icon: Activity, end: false },
   { to: "/admin", label: "Admin", icon: Database, end: false },
 ];

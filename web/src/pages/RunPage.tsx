@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download, FileText, LayoutGrid, List, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, FileText, LayoutGrid, List, Mail, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
 import { api, fileUrl, subscribeEvents } from "../lib/api";
 import type { Flag, Item, PipelineEvent, Run, RunDetail } from "../lib/types";
 import { availability, money, senderLabel, sourceLabel } from "../lib/format";
@@ -165,6 +165,7 @@ export function RunPage() {
   const [email, setEmail] = useState<Awaited<ReturnType<typeof api.email>> | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [emailTo, setEmailTo] = useState<string | null>(null);
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -245,10 +246,11 @@ export function RunPage() {
     }
   }
 
-  async function sendNow() {
+  async function sendNow(to?: string) {
     setBusy(true);
     try {
-      const r = await api.send(id);
+      const r = await api.send(id, to);
+      setEmailTo(null);
       toast(`Sent to ${r.sent_to}.`);
       load();
     } catch (e) {
@@ -260,22 +262,17 @@ export function RunPage() {
 
   let primary: React.ReactNode = null;
   const openFlags = detail.review ? detail.review.total - detail.review.resolved : 0;
+  const sendable = detail.mail_configured && (status === "ready" || status === "approved" || status === "sent");
   if (status === "needs_review") {
     primary = (
       <Button variant="primary" onClick={() => navigate(`/runs/${encodeURIComponent(id)}/review`)}>
         <ShieldCheck size={16} aria-hidden /> Review {openFlags} flag{openFlags === 1 ? "" : "s"}
       </Button>
     );
-  } else if (status === "ready" && run?.quality_ran && canSend) {
+  } else if ((status === "ready" || status === "approved") && canSend) {
     primary = (
-      <Button variant="primary" onClick={() => setConfirm(true)}>
-        <MailCheck size={16} aria-hidden /> Approve & send
-      </Button>
-    );
-  } else if (status === "approved" && canSend) {
-    primary = (
-      <Button variant="primary" onClick={sendNow} disabled={busy}>
-        <MailCheck size={16} aria-hidden /> Send reply
+      <Button variant="primary" onClick={() => setConfirm(true)} disabled={busy}>
+        <MailCheck size={16} aria-hidden /> {status === "approved" ? "Send reply" : "Approve & send"}
       </Button>
     );
   } else if (xlsx) {
@@ -310,6 +307,11 @@ export function RunPage() {
             <LinkButton href={fileUrl(id, xlsx)} download>
               <Download size={16} aria-hidden /> RFQ.xlsx
             </LinkButton>
+          )}
+          {sendable && (
+            <Button onClick={() => setEmailTo("")} disabled={busy}>
+              <Mail size={16} aria-hidden /> Email RFQ…
+            </Button>
           )}
           {detail.files.includes("reply.eml") && (
             <LinkButton href={fileUrl(id, "reply.eml")} download>
@@ -471,6 +473,19 @@ export function RunPage() {
       )}
 
       <Confetti fire={celebrate} />
+      <Dialog open={emailTo !== null} onClose={() => setEmailTo(null)} title="Email this RFQ"
+        footer={<>
+          <Button onClick={() => setEmailTo(null)}>Cancel</Button>
+          <Button variant="primary" disabled={busy || !emailTo?.includes("@")} onClick={() => sendNow(emailTo ?? "")}>
+            <Mail size={16} aria-hidden /> Send
+          </Button>
+        </>}>
+        <form onSubmit={(e) => { e.preventDefault(); if (emailTo?.includes("@")) sendNow(emailTo); }} className="space-y-3 text-sm">
+          <p>The reply and RFQ.xlsx go to this address from the team inbox (not to the original sender{s.source === "inbox" ? "; use Send reply for that" : ", whose address is a sample"}).</p>
+          <input autoFocus type="email" value={emailTo ?? ""} onChange={(e) => setEmailTo(e.target.value)} placeholder="name@example.com"
+            aria-label="Email address" className="h-10 w-full rounded-md border border-border bg-surface px-3" />
+        </form>
+      </Dialog>
       <SourceSheet
         item={open}
         flags={open ? flagsByItem[open.product_id] ?? [] : []}
@@ -481,7 +496,9 @@ export function RunPage() {
       <Dialog open={confirm} onClose={() => setConfirm(false)} title="Approve and send?"
         footer={<>
           <Button onClick={() => setConfirm(false)}>Cancel</Button>
-          <Button variant="primary" disabled={busy} onClick={() => approve(true)}>Approve & send</Button>
+          <Button variant="primary" disabled={busy} onClick={() => (status === "approved" ? sendNow() : approve(true))}>
+            {status === "approved" ? "Send reply" : "Approve & send"}
+          </Button>
         </>}>
         <p className="text-sm">The reply with RFQ.xlsx goes to <strong>{s.sender}</strong> in the same thread. This can't be undone.</p>
       </Dialog>
