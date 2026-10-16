@@ -1,6 +1,6 @@
 """Email mode: answer RFQ emails in a Gmail inbox with the RFQ Excel your base builds.
 
-Every 30 seconds it checks the inbox for unread emails from today with "RFQ" in the subject.
+Every 30 seconds it checks the inbox for unread emails from today with "RFQ" in the subject or the text.
 For each one it saves the email to out/inbox/, runs YOUR base on it:
 
     python rfq/build.py <saved email> --out out
@@ -188,9 +188,10 @@ def check_inbox(extra_args):
     with imaplib.IMAP4_SSL("imap.gmail.com") as imap:
         imap.login(BOT_EMAIL, BOT_PASSWORD)
         imap.select("INBOX")
-        # Only today's unread emails with RFQ in the subject: the rest of the inbox is never touched.
+        # Only today's unread emails that say RFQ in the subject or the text ("Please prepare the RFQ for
+        # the items below", often with a blank or "Fwd:" subject): the rest of the inbox is never touched.
         _, data = imap.uid("SEARCH", None, "UNSEEN", "SINCE", time.strftime("%d-%b-%Y"),
-                           "SUBJECT", f'"{SUBJECT_KEYWORD}"')
+                           "OR", "SUBJECT", f'"{SUBJECT_KEYWORD}"', "BODY", f'"{SUBJECT_KEYWORD}"')
         for uid in data[0].split():
             # Marked read first, before the build: a second watcher skips it, and a bad email is never
             # retried in a loop.

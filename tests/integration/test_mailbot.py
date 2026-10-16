@@ -33,6 +33,7 @@ class FakeImap:
 
     def uid(self, command, *args):
         if command == "SEARCH":
+            self.search = args
             return "OK", [b" ".join(self.messages)]
         if command == "FETCH":
             return "OK", [(b"", self.messages[args[0]])]
@@ -144,3 +145,10 @@ def test_own_emails_are_skipped(bot, monkeypatch):
         b"priya.nair@sourcing.example.com", b"bot@example.com")
     imap = bot({b"4": raw})
     assert imap.seen == [b"4"] and FakeSmtp.sent == []
+
+
+def test_search_matches_rfq_in_subject_or_text(bot, monkeypatch):
+    """Real RFQs often have a blank or "Fwd:" subject and say "prepare the RFQ" in the text."""
+    imap = bot({})
+    assert imap.search[1:5] == ("UNSEEN", "SINCE", "16-Oct-2026", "OR")
+    assert imap.search[5:] == ("SUBJECT", '"RFQ"', "BODY", '"RFQ"')
