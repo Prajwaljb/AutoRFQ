@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AutoRFQ · Ferguson RFQ Challenge</title>
 <!--
-  AutoRFQ presentation, 6 slides (from the Agentic Fest template).
+  AutoRFQ presentation, 8 slides (from the Agentic Fest template).
   Screenshot next to this file: arm-result.png. The flow diagram is Mermaid (loads from cdn.jsdelivr.net).
   Still to fill: the grey italic text (class="ph"): group number and team names.
   Right / Left arrow to move, F for full screen.
@@ -120,6 +120,16 @@
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
   .tiles .card{text-align:center;padding:18px 14px;} .tiles .stat{font-size:34px;}
 
+  /* closer-look slides */
+  .tbl.lg{font-size:14px;} .tbl.lg td{padding:9px 10px;}
+  .tbl .trap{color:#9F1239;font-weight:600;}
+  .q{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--bg2);color:var(--navy);padding:1px 6px;border-radius:5px;white-space:nowrap;}
+  .bars{display:flex;flex-direction:column;gap:9px;}
+  .bar{display:grid;grid-template-columns:190px 1fr 44px;gap:10px;align-items:center;font-size:13.5px;color:var(--ink);}
+  .bar .track{background:var(--bg2);border-radius:6px;height:16px;overflow:hidden;}
+  .bar .fill{height:100%;background:var(--cyan);border-radius:6px;} .bar .fill.n{background:var(--navy);} .bar .fill.w{background:#F59E0B;}
+  .bar .v{font-weight:800;color:var(--navy);text-align:right;}
+  .arrowv{color:var(--muted);padding:0 4px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 </head>
@@ -168,10 +178,32 @@
     </div>
   </div>
 
-  <!-- 3 · HOW IT WORKS -->
+  <!-- 3 · A CLOSER LOOK AT THE EMAILS -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">02 · What we built</div><div class="h">How <span class="accent">AutoRFQ</span> works</div></div>
+      <div class="shead"><div class="eyebrow">02 · A closer look</div><div class="h">Four test emails, <span class="accent">four ways to hide</span> a product number</div>
+        <div class="lead">Finding the product numbers is the first hard part. Every email has numbers that are <b>not</b> products, and missing one product or adding a fake one breaks the RFQ.</div></div>
+      <div class="card" style="padding:10px 14px">
+        <table class="tbl lg">
+          <tr><th style="width:21%">Email</th><th style="width:37%">Where the products are</th><th>The trap</th></tr>
+          <tr><td><b>1 · Plain list</b></td><td>6 item numbers, one per line, in the email text</td><td class="trap">The easy case, and the yardstick: our Excel must match Ferguson's reference cell for cell</td></tr>
+          <tr><td><b>2 · Excel attachment</b></td><td>8 items in <span class="q">rfq_items.xlsx</span>, column "Item number"</td><td class="trap">The same sheet has line numbers <span class="q">1…8</span> and quantities <span class="q">10, 25, 40</span>. One item, <span class="q">225123</span>, is no longer sold</td></tr>
+          <tr><td><b>3 · Mixed brands</b></td><td>4 Ferguson items plus 3 codes from other brands</td><td class="trap"><span class="q">17783-79-3000</span> (Mutual), <span class="q">31-024</span> (Empire), <span class="q">MTX-4409-XQ</span> (the customer's own code): not Ferguson numbers, but they can't be dropped</td></tr>
+          <tr><td><b>4 · Forwarded twice</b></td><td>Items scattered through a 3-level forward</td><td class="trap"><span class="q">#5106926</span> listed twice, <span class="q">x 40 rolls</span> and <span class="q">3 inch</span> mixed into the lines, and a quoted thread that repeats the list</td></tr>
+        </table>
+      </div>
+      <div class="c3" style="margin-top:14px">
+        <div class="card top"><div class="t">🔢 Is it a product?</div><div class="d">Ferguson item numbers are 6 to 7 digits. Phone numbers, PO numbers, quantities and line numbers are digits too, so they're filtered out by <b>where</b> they appear, not just how they look.</div></div>
+        <div class="card top"><div class="t">📋 Nothing silently dropped</div><div class="d">Every code the customer asked for gets a row: found, <b>Not found</b> (with the reason), or a <b>competitor code</b> with a suggested Ferguson match.</div></div>
+        <div class="card top"><div class="t">🔁 Duplicates kept once</div><div class="d">An item listed twice gets one row and a note: <i>"Listed twice in the request; kept once."</i></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · HOW IT WORKS -->
+  <div class="slide">
+    <div class="inner">
+      <div class="shead"><div class="eyebrow">03 · What we built</div><div class="h">How <span class="accent">AutoRFQ</span> works</div></div>
       <div class="mmd simple"><pre class="mermaid">
 flowchart LR
   A["📧<br/>Customer emails<br/>a list of products"] --> B["🔎<br/>We read the<br/>product numbers"]
@@ -189,10 +221,10 @@ flowchart LR
     </div>
   </div>
 
-  <!-- 4 · WHAT THE AGENT CATCHES -->
+  <!-- 5 · WHAT THE AGENT CATCHES -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">03 · Our agent</div><div class="h">What the agent <span class="accent">catches</span></div></div>
+      <div class="shead"><div class="eyebrow">04 · Our agent</div><div class="h">What the agent <span class="accent">catches</span></div></div>
       <div class="c2" style="grid-template-columns:1fr 1fr;align-items:start">
         <div style="display:flex;flex-direction:column;gap:12px">
           <div class="card"><div class="t">📏 A size that doesn't add up</div><div class="ex">
@@ -210,10 +242,44 @@ flowchart LR
     </div>
   </div>
 
-  <!-- 5 · RESULTS AND NEXT STEPS -->
+  <!-- 6 · THE DATA IS MESSY TOO -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">04 · Results</div><div class="h">From days to <span class="accent">about a minute</span></div></div>
+      <div class="shead"><div class="eyebrow">05 · Inside the data</div><div class="h">The product data is <span class="accent">messy too</span></div>
+        <div class="lead">Each product needs <b>23 details</b>. The 4 test emails ask for <b>28 products</b>, so that's <b>644 cells</b>, and the sources don't always agree or use the same units.</div></div>
+      <div class="c2" style="grid-template-columns:1.15fr 1fr;align-items:start">
+        <div class="card" style="padding:10px 14px">
+          <table class="tbl">
+            <tr><th>What the source says</th><th>What goes in the RFQ</th></tr>
+            <tr><td>Length <span class="q">1000</span> (no unit)</td><td><span class="q">1000 ft</span> <span class="pill ok">unit added</span></td></tr>
+            <tr><td>Competitor tape <span class="q">333.33 yds</span></td><td><span class="q">1000 ft</span> <span class="pill ok">converted</span></td></tr>
+            <tr><td><span class="q">300 in</span> on a tape sold as 300 ft</td><td>kept as is <span class="pill code">flagged</span> + held for a person</td></tr>
+            <tr><td>Product details <span class="q">-</span></td><td>left blank <span class="pill code">placeholder</span></td></tr>
+            <tr><td>Website and spec sheet disagree</td><td>website value kept, the other one on the <b>Notes</b> sheet</td></tr>
+            <tr><td><span class="q">225123</span> no longer sold</td><td>row kept: <span class="pill miss">Not found</span> + the reason</td></tr>
+          </table>
+          <div class="small" style="margin-top:8px">The rule: <b>a blank beats a guess</b>. The agent adds a unit when it's certain, flags anything doubtful, and never overwrites a value.</div>
+        </div>
+        <div class="card">
+          <div class="t">📊 What the checks found in the 4 test emails</div>
+          <div class="bars" style="margin-top:6px">
+            <div class="bar"><span>Missing values flagged</span><div class="track"><div class="fill n" style="width:100%"></div></div><span class="v">105</span></div>
+            <div class="bar"><span>Units standardised</span><div class="track"><div class="fill" style="width:17%"></div></div><span class="v">18</span></div>
+            <div class="bar"><span>Not found (kept, with reason)</span><div class="track"><div class="fill w" style="width:6%"></div></div><span class="v">6</span></div>
+            <div class="bar"><span>Placeholders like "-"</span><div class="track"><div class="fill w" style="width:4%"></div></div><span class="v">4</span></div>
+            <div class="bar"><span>Label contradicts itself</span><div class="track"><div class="fill w" style="width:2%"></div></div><span class="v">2</span></div>
+            <div class="bar"><span>Duplicate lines</span><div class="track"><div class="fill w" style="width:1%"></div></div><span class="v">1</span></div>
+          </div>
+          <div class="small" style="margin-top:12px">Every flag shows up as a coloured cell with a comment in the Excel, so the reviewer sees exactly which value to check.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · RESULTS AND NEXT STEPS -->
+  <div class="slide">
+    <div class="inner">
+      <div class="shead"><div class="eyebrow">06 · Results</div><div class="h">From days to <span class="accent">about a minute</span></div></div>
       <div class="tiles">
         <div class="card top"><div class="stat">~1 <span class="accent">min</span></div><div class="d">for a full RFQ, instead of 2 to 4 days</div></div>
         <div class="card top"><div class="stat">100<span class="accent">%</span></div><div class="d">match with Ferguson's reference answer</div></div>
@@ -236,7 +302,7 @@ flowchart LR
     </div>
   </div>
 
-  <!-- 6 · THANK YOU -->
+  <!-- 8 · THANK YOU -->
   <div class="slide cover">
     <div class="inner">
       <div class="cover__logos">

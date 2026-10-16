@@ -46,7 +46,7 @@ export function HealthBar({ health }: { health: Health | null }) {
       <Pill icon={<Bot size={12} aria-hidden />} label="LLM check" value={health.ai ? "On" : "Off"} ok={health.ai}
         title="Azure OpenAI suggestions (advisory only)." />
       <Pill icon={<Inbox size={12} aria-hidden />} label="Inbox" value={health.inbox ? "Watching" : "Off"} ok={health.inbox}
-        title="mailbot.py answering RFQ emails in the team inbox." />
+        title="RFQ emails to the team inbox are answered automatically." />
       <Pill icon={<Mail size={12} aria-hidden />} label="Mail" value={health.mail ? "On" : "Off"} ok={health.mail}
         title="Sending approved replies (BOT_EMAIL / BOT_PASSWORD)." />
     </div>

@@ -15,6 +15,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "UPLOADS", tmp_path / "uploads")
     monkeypatch.setattr(settings, "INBOX", tmp_path / "inbox")
     monkeypatch.setattr(settings, "CACHE", tmp_path / ".cache")
+    monkeypatch.setattr(settings.mailbot, "OUT", tmp_path)
     monkeypatch.setattr(settings.mailbot, "BOT_EMAIL", "")
     monkeypatch.setattr(settings.mailbot, "BOT_PASSWORD", "")
     from app.main import app
@@ -130,8 +131,24 @@ def test_function_app_wraps_the_api(monkeypatch):
         monkeypatch.setenv(name, os.environ.get(name, ""))      # restore them after this test
     import function_app
     assert os.environ["RFQ_MODE"] in ("", "no-browser")
-    [fn] = function_app.app.get_functions()
-    assert fn.get_bindings()[0].route == "/{*route}"
+    fns = {f.get_function_name(): f for f in function_app.app.get_functions()}
+    http = [f for f in fns.values() if getattr(f.get_bindings()[0], "route", None) == "/{*route}"]
+    assert len(http) == 1 and "inbox_timer" in fns  # the API, plus the inbox check every minute
+
+
+def test_inbox_status_reports_the_heartbeat(client):
+    import json
+    import time
+    from app import settings
+    beat = settings.mailbot.OUT / ".mailbot.json"
+    beat.write_text(json.dumps({"email": "bot@x", "at": time.time(), "by": "web app", "error": ""}))
+    try:
+        info = client.get("/api/health").json()["inbox_info"]
+        assert info["watching"] and info["by"] == "web app"
+        beat.write_text(json.dumps({"email": "bot@x", "at": time.time(), "by": "web app", "error": "login failed"}))
+        assert client.get("/api/health").json()["inbox"] is False
+    finally:
+        beat.unlink()
 
 
 def test_mail_test_without_credentials(client):

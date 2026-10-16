@@ -1,6 +1,8 @@
 """Opens the Chrome window for live ferguson.com lookups (remote debugging on port 9333).
 
-    python rfq/chrome.py [--port 9333] [--browser PATH]
+    python rfq/chrome.py [--port 9333] [--browser PATH] [--show]
+
+The window is hidden by default (virtual display on Linux, off-screen elsewhere); --show shows it.
 """
 import argparse
 import sys
@@ -17,8 +19,9 @@ def main():
     ap = argparse.ArgumentParser(prog="rfq/chrome.py", description=__doc__.splitlines()[0])
     ap.add_argument("--port", type=int, default=9333)
     ap.add_argument("--browser", help="path to chrome / msedge / chromium (default: search)")
+    ap.add_argument("--show", action="store_true", help="show the window (default: hidden)")
     args = ap.parse_args()
-    ok, message = launch(args.port, args.browser)
+    ok, message = launch(args.port, args.browser, show=True if args.show else None)
     print(message)
     return 0 if ok else 1
 

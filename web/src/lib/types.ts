@@ -179,6 +179,7 @@ export interface Health {
   chrome_auto: boolean;
   ai: boolean;
   inbox: boolean;
+  inbox_info?: { watching: boolean; by: string; email: string; error: string; seconds_ago: number | null };
   mail: boolean;
   mode: string;
   forced_mode: string | null;

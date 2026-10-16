@@ -24,6 +24,7 @@ def health():
         "chrome_auto": config.AUTO_BROWSER and forced not in ("no-browser", "offline"),
         "ai": llm.enabled(),
         "inbox": store.inbox_watching(),
+        "inbox_info": store.inbox_status(),
         "mail": settings.mail_configured(),
         "mode": settings.default_mode(),
         "forced_mode": forced or None,

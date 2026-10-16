@@ -45,7 +45,7 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
             <Row label="Chrome" ok={health.chrome || health.chrome_auto}
               text={health.chrome ? "The scraping window is open." : health.chrome_auto ? "Closed. Live runs open it and close it when done." : "Not available on this server: catalog + spec sheets."} />
             <Row label="LLM check" ok={health.ai} text={health.ai ? "OpenAI / Azure OpenAI key set: the model looks for odd values (advisory)." : "Off: set OPENAI_API_KEY (or AZURE_OPENAI_*) in .env. Units, blanks and rule flags still run."} />
-            <Row label="Inbox" ok={health.inbox} text={health.inbox ? "mailbot.py is answering RFQ emails." : "mailbot.py is not running."} />
+            <Row label="Inbox" ok={health.inbox} text={inboxText(health)} />
             <Row label="Mail" ok={health.mail} text={health.mail ? "Approved replies can be sent." : "BOT_EMAIL / BOT_PASSWORD not set: approve and download instead."} />
           </>
         ) : (
@@ -116,4 +116,16 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
       </Card>
     </div>
   );
+}
+
+function inboxText(health: Health): string {
+  const info = health.inbox_info;
+  if (!health.mail) return "Off: set BOT_EMAIL / BOT_PASSWORD to answer RFQ emails.";
+  if (info?.error) return `Not answering: ${info.error}`;
+  if (health.inbox) {
+    const who = info?.by === "mailbot.py" ? "mailbot.py" : info?.by === "azure timer" ? "the Azure timer" : "this web app";
+    const ago = info?.seconds_ago != null ? `, last check ${info.seconds_ago}s ago` : "";
+    return `Answering RFQ emails${info?.email ? ` to ${info.email}` : ""} (watched by ${who}${ago}).`;
+  }
+  return "Starting: the first inbox check runs within a minute.";
 }

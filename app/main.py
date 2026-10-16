@@ -7,9 +7,20 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import settings
-from app.routes import admin, health, review, runs, upload
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="AutoRFQ", docs_url="/api/docs", openapi_url="/api/openapi.json")
+from app.routes import admin, health, review, runs, upload
+from app.services import inbox
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    inbox.start()  # answers RFQ emails while the app runs (when mail is set up)
+    yield
+    inbox.stop()
+
+
+app = FastAPI(title="AutoRFQ", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan)
 app.include_router(runs.router)
 app.include_router(review.router)
 app.include_router(health.router)

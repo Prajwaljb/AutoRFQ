@@ -11,7 +11,8 @@ Anything you add to rfq/build.py, such as the quality agent, is in the reply aut
 - If the run's status (out/<email name>/run.json) is needs_review, nothing goes to the customer yet: the
   RFQ waits for a person to approve it in the web app (optional notice to REVIEW_NOTIFY_EMAIL).
 - If the base fails or times out, the sender gets a short "a person will follow up" reply.
-- Every processed email is marked read, even after an error, so it is never retried in a loop.
+- Every email is marked read before it is processed, so it is never retried in a loop, and a second
+  watcher (another deployment) skips it.
 
 Setup: in .env set BOT_EMAIL (the team Gmail) and BOT_PASSWORD (its 16-letter App Password).
 Run:   python mailbot.py            (keep the Chrome window from Part A open; Ctrl+C to stop)
@@ -32,7 +33,6 @@ from email.utils import formatdate, make_msgid, parseaddr
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-OUT = ROOT / "out"
 SUBJECT_KEYWORD = "RFQ"
 POLL_SECONDS = 30
 XLSX_TYPE = ("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -42,6 +42,7 @@ sys.path.insert(0, str(ROOT))
 from rfq.infra.env import load as load_env  # noqa: E402  (one .env loader for the bot, the base and the app)
 
 load_env(ROOT / ".env")
+OUT = Path(os.environ.get("RFQ_OUT_DIR", "").strip() or ROOT / "out").resolve()  # the web app reads the same folder
 BOT_EMAIL = os.environ.get("BOT_EMAIL", "").strip()
 BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "").replace(" ", "")  # Google shows it in groups of 4
 REVIEW_NOTIFY_EMAIL = os.environ.get("REVIEW_NOTIFY_EMAIL", "").strip()  # optional: who hears about held RFQs
@@ -70,11 +71,19 @@ def run_base(eml_path, extra_args):
     """Runs the team's base on one email. Returns the folder it wrote RFQ.xlsx into."""
     cmd = [sys.executable, "rfq/build.py", str(eml_path), "--out", str(OUT), *extra_args]
     log("Running: " + " ".join(cmd[1:]))
-    subprocess.run(cmd, cwd=ROOT, check=True, timeout=900)
+    subprocess.run(cmd, cwd=ROOT, check=True, timeout=900, env=child_env())
     folder = OUT / eml_path.stem
     if not (folder / "RFQ.xlsx").exists():
         raise FileNotFoundError(f"rfq/build.py did not save {folder / 'RFQ.xlsx'} (see the spec)")
     return folder
+
+
+def child_env():
+    """build.py's environment, with this process's sys.path (on Azure Functions the packages are only there)."""
+    env = dict(os.environ)
+    paths = [p for p in sys.path if p] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(paths))
+    return env
 
 
 def make_reply(original, folder, reply=None):
@@ -183,6 +192,9 @@ def check_inbox(extra_args):
         _, data = imap.uid("SEARCH", None, "UNSEEN", "SINCE", time.strftime("%d-%b-%Y"),
                            "SUBJECT", f'"{SUBJECT_KEYWORD}"')
         for uid in data[0].split():
+            # Marked read first, before the build: a second watcher skips it, and a bad email is never
+            # retried in a loop.
+            imap.uid("STORE", uid, "+FLAGS", r"(\Seen)")
             try:
                 _, fetched = imap.uid("FETCH", uid, "(BODY.PEEK[])")
                 raw = fetched[0][1]
@@ -195,19 +207,40 @@ def check_inbox(extra_args):
                     eml = inbox_dir / f"rfq-{time.strftime('%Y%m%d-%H%M%S')}-{uid.decode()}.eml"
                     eml.write_bytes(raw)
                     answer(msg, eml, extra_args)
-            except Exception as e:  # e.g. SMTP down: log it; the email is still marked read below
+            except Exception as e:  # e.g. SMTP down: log it; the email is already marked read
                 log(f"Problem with email {uid.decode()}: {type(e).__name__}: {e}")
-            finally:  # always, so a bad email is never retried in a loop
-                imap.uid("STORE", uid, "+FLAGS", r"(\Seen)")
 
 
-def heartbeat():
-    """Tells the web app the inbox is being watched (out/.mailbot.json)."""
+def heartbeat(by="mailbot.py", error=""):
+    """Tells the web app the inbox is being watched (out/.mailbot.json): who checked, when, and any problem."""
     try:
         OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / ".mailbot.json").write_text(json.dumps({"email": BOT_EMAIL, "at": time.time()}), encoding="utf-8")
+        (OUT / ".mailbot.json").write_text(json.dumps({"email": BOT_EMAIL, "at": time.time(), "by": by,
+                                                       "pid": os.getpid(), "error": error[:300]}), encoding="utf-8")
     except OSError:
         pass
+
+
+def last_heartbeat():
+    try:
+        return json.loads((OUT / ".mailbot.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def check_once(extra_args=(), by="mailbot.py"):
+    """One inbox check with heartbeats before and after (a long build never looks like a stopped bot).
+    Returns "" or the problem."""
+    heartbeat(by)
+    error = ""
+    try:
+        check_inbox(list(extra_args))
+    except imaplib.IMAP4.error as e:
+        error = f"Gmail login failed ({e}). Check BOT_EMAIL and BOT_PASSWORD."
+    except Exception as e:  # a network blip or one bad email should not stop the bot
+        error = f"{type(e).__name__}: {e}"
+    heartbeat(by, error)
+    return error
 
 
 def main():
@@ -221,13 +254,11 @@ def main():
         return
     log(f"Watching {BOT_EMAIL} for emails with '{SUBJECT_KEYWORD}' in the subject. Ctrl+C to stop.")
     while True:
-        try:
-            check_inbox(extra_args)
-            heartbeat()
-        except imaplib.IMAP4.error as e:
-            sys.exit(f"Gmail login failed ({e}). Check BOT_EMAIL and BOT_PASSWORD in .env.")
-        except Exception as e:  # a network blip or one bad email should not stop the bot
-            log(f"Problem, trying again in {POLL_SECONDS}s: {e}")
+        error = check_once(extra_args)
+        if error.startswith("Gmail login failed"):
+            sys.exit(error)
+        if error:
+            log(f"Problem, trying again in {POLL_SECONDS}s: {error}")
         time.sleep(POLL_SECONDS)
 
 

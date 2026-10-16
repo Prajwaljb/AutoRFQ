@@ -2,7 +2,11 @@
 
 If a debuggable Chrome already answers on the port, it does nothing. Otherwise it finds Chrome (then Edge,
 which speaks the same protocol, or Chromium), starts it with its own profile in the temp folder, and waits
-until it answers. Leave the window open while RFQs are processed; click "Stay signed out" if asked.
+until it answers.
+
+The window is hidden by default (RFQ_SHOW_BROWSER=1 shows it). It is still a real, headed browser:
+ferguson.com refuses headless Chrome, so on Linux it runs on an invisible virtual display (Xvfb) when one is
+installed, and on Windows/macOS the window opens off-screen.
 """
 import os
 import shutil
@@ -76,8 +80,23 @@ def port_of(cdp):
         return 9333
 
 
-def launch(port=9333, browser=None, wait=20):
-    """Returns (ok, message)."""
+def show_window():
+    return os.environ.get("RFQ_SHOW_BROWSER", "0").strip().lower() in ("1", "true", "yes")
+
+
+def hidden_prefix():
+    """(command prefix, extra Chrome args, how it is hidden) for a hidden but headed window."""
+    if sys.platform.startswith("linux"):
+        xvfb = shutil.which("xvfb-run")
+        if xvfb:
+            return [xvfb, "-a", "-s", "-screen 0 1366x900x24"], ["--window-size=1366,900"], "on a virtual display"
+        if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            return [], [], "no display and no Xvfb (install xvfb)"
+    return [], ["--window-position=-32000,-32000", "--window-size=1366,900"], "off-screen"
+
+
+def launch(port=9333, browser=None, wait=20, show=None):
+    """Returns (ok, message). show=None follows RFQ_SHOW_BROWSER (hidden by default)."""
     cdp = f"http://127.0.0.1:{port}"
     if chrome_available(cdp):
         return True, f"Chrome is already open for scraping at {cdp}."
@@ -87,8 +106,12 @@ def launch(port=9333, browser=None, wait=20):
     if exe is None:
         return False, "No Chrome, Edge or Chromium found. Install Chrome, or pass --browser <path to chrome>."
     profile = Path(tempfile.gettempdir()) / "chrome-rfq"
-    args = [str(exe), f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "--no-first-run",
-            "--no-default-browser-check", START_URL]
+    show = show_window() if show is None else show
+    prefix, extra, how = ([], [], "visible") if show else hidden_prefix()
+    if os.environ.get("RFQ_IN_CONTAINER") == "1":
+        extra = extra + ["--no-sandbox", "--disable-dev-shm-usage"]
+    args = prefix + [str(exe), f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "--no-first-run",
+            "--no-default-browser-check", *extra, START_URL]
     kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
     if sys.platform.startswith("win"):
         kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -98,6 +121,6 @@ def launch(port=9333, browser=None, wait=20):
     deadline = time.monotonic() + wait
     while time.monotonic() < deadline:
         if chrome_available(cdp):
-            return True, f"Opened {exe.name} for scraping at {cdp} (profile {profile}). Leave it open."
+            return True, f"Opened {exe.name} ({how}) for scraping at {cdp} (profile {profile})."
         time.sleep(0.5)
     return False, f"Started {exe} but it did not answer at {cdp} within {wait}s."

@@ -133,10 +133,20 @@ def screenshot(product_id):
     return path
 
 
+INBOX_STALE_SECONDS = 150  # the watchers check every 30-60 s; a build can take a while
+
+
+def inbox_status():
+    """Who watches the inbox (web app, mailbot.py or the Azure timer), when it last checked, any problem."""
+    beat = _read_json(settings.mailbot.OUT / ".mailbot.json") or {}
+    age = time.time() - float(beat.get("at", 0)) if beat else None
+    return {"watching": age is not None and age < INBOX_STALE_SECONDS and not beat.get("error"),
+            "by": beat.get("by", ""), "email": beat.get("email", ""), "error": beat.get("error", ""),
+            "seconds_ago": round(age) if age is not None else None}
+
+
 def inbox_watching():
-    """True if mailbot.py checked the inbox in the last 90 seconds (it writes a heartbeat)."""
-    beat = _read_json(settings.OUT / ".mailbot.json")
-    return bool(beat) and time.time() - float(beat.get("at", 0)) < 90
+    return inbox_status()["watching"]
 
 
 def file_path(run_id, name):

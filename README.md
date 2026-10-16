@@ -38,7 +38,7 @@ flowchart LR
 | `app/` | FastAPI: JSON API, SSE progress, approve & send; serves `web/dist` |
 | `web/` | React + Vite + TypeScript + Tailwind, Ferguson palette, dark/light |
 | `mailbot.py` | Gmail loop: replies, holds RFQs that need review, never loops on a bad email |
-| `tests/` | 90 offline tests (pytest) + vitest |
+| `tests/` | 117 offline tests (pytest) + vitest |
 | `data/spec_cache/` | Bundled spec sheet PDFs, the fallback when a download fails |
 
 ## Run it
@@ -62,7 +62,7 @@ This writes `out/<email name>/RFQ.xlsx`, `reply.eml`, `run.json` and `run.log`.
 
 | Mode | Option | Sources used |
 |---|---|---|
-| Live | (default) | ferguson.com through a visible Chrome window (opened and closed for you; `--keep-browser` keeps it), then spec sheets, then the catalog |
+| Live | (default) | ferguson.com through a real Chrome that stays hidden (Xvfb virtual display on Linux, off-screen on Windows/macOS; `RFQ_SHOW_BROWSER=1` or `rfq/chrome.py --show` shows it). Opened and closed for you (`--keep-browser` keeps it), then spec sheets, then the catalog |
 | No browser | `--no-browser` | spec sheet PDFs (bundled copies if a download fails) and the catalog. Used on Azure |
 | Offline | `--offline` | catalog only, no network. The tests and the reference use this |
 | Replay | `--replay` | pages and PDFs cached by an earlier run, with no network |
@@ -80,8 +80,10 @@ Diagnostics page shows which keys are set (never their values).
 | `REVIEW_NOTIFY_EMAIL`, `DASHBOARD_URL` | optional "needs review" notice and its link |
 | `SERPAPI_API_KEY` | optional web search for competitor codes with no description |
 
-**Email bot:** with the mail keys set, run `.venv/bin/python mailbot.py`. It answers unread emails from today
-with "RFQ" in the subject, sent from another address, in the same thread. RFQs that need review wait in the
+**Email bot:** with the mail keys set, the web app watches the inbox itself (every 30 s; `RFQ_INBOX_WATCH=0`
+turns it off), and Diagnostics shows who watches it and when it last checked. `.venv/bin/python mailbot.py` does
+the same without the web app; when it runs, the web app leaves the inbox to it. It answers unread emails from
+today with "RFQ" in the subject, sent from another address, in the same thread. RFQs that need review wait in the
 dashboard until someone clicks Approve & send.
 
 **Upload page:** http://127.0.0.1:8000/rfq (the same page runs on Azure).
@@ -89,7 +91,7 @@ dashboard until someone clicks Approve & send.
 **Checks:**
 
 ```bash
-.venv/bin/python -m pytest                                    # 90 offline tests
+.venv/bin/python -m pytest                                    # 117 offline tests
 .venv/bin/python .claude/skills/rfq-verify/check.py --build   # spec.md "Done when"
 (cd web && npm test)
 ```
@@ -109,11 +111,19 @@ The script creates an **Azure Function App** (Python 3.12, Linux, consumption pl
 - **Requirements:** the zip leaves playwright out.
 - **Check:** after deploying, it runs the email-1 self-check against the live URL.
 
+**Live mode on Azure** (`--target container`): Functions can't run a browser, so this builds the `Dockerfile`
+(the web app, the inbox watcher and Chromium on an invisible Xvfb display), pushes it to an Azure Container
+Registry and runs it on **Azure Container Apps** (one always-on replica, 1 vCPU / 2 GiB, `RFQ_MODE=live`). Use
+`--no-inbox` on the other deployment so only one of them answers the inbox. Locally:
+`docker build -t autorfq . && docker run -p 8000:8000 --env-file .env autorfq`.
+
+On Functions, the `inbox_timer` function in `function_app.py` checks the inbox every minute instead.
+
 `--target webapp` uses App Service instead. If you see AADSTS50076/50079, sign in at portal.azure.com, set up
 the Authenticator app, then run `az logout` and `az login`.
 
-**What runs where:** the email bot runs on a laptop, since it needs Gmail and, for live pages, Chrome. The
-upload page and dashboard run on Azure.
+**What runs where:** everything runs on Azure: the container answers the inbox and looks up live pages; the
+Function App is the no-browser fallback.
 
 **Live link:** https://autorfq-9b7e0b.azurewebsites.net (dashboard) · upload page:
 https://autorfq-9b7e0b.azurewebsites.net/rfq. It's an Azure Function App (Python 3.12, Linux) in no-browser mode.
@@ -122,8 +132,8 @@ the same RFQ as the reference.
 
 ## Limits
 
-- **ferguson.com blocks headless and scripted browsers.** Live mode needs a visible Chrome window on the
-  machine, so the cloud deployment uses spec sheets and the catalog instead.
+- **ferguson.com blocks headless browsers.** Live mode uses a real, headed Chrome on an invisible display
+  instead; no fingerprint tricks. If the site refuses a page, that item falls back to spec sheets and the catalog.
 - **Catalog prices date from 24 Sep 2026.** The reply labels them as list prices from that date.
 - **Spec sheet reading is pattern based** (Thickness, ASTM, OSHA, Material). It only fills blank cells, and
   every disagreement goes to the Notes sheet.

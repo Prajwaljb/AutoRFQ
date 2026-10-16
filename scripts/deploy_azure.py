@@ -1,8 +1,12 @@
 """Deploys AutoRFQ to Azure and checks the live link.
 
     az logout && az login          # after setting up MFA at portal.azure.com (AADSTS50076/50079)
-    python scripts/deploy_azure.py [--target functions|webapp] [--name autorfq-xyz] [--group rg-autorfq]
+    python scripts/deploy_azure.py [--target functions|webapp|container] [--name autorfq-xyz] [--group rg-autorfq]
                                    [--location centralindia] [--with-secrets] [--dry-run]
+
+--target container (live mode in the cloud): builds the Dockerfile (Chromium on an invisible Xvfb display,
+the web app, the inbox watcher), pushes it to an Azure Container Registry and runs it on Azure Container Apps
+with one always-on replica (1 vCPU, 2 GiB), RFQ_MODE=live. Needs Docker locally, or uses `az acr build`.
 
 --target functions (default, as on Day 3): resource group, storage account, Function App (Python 3.12, Linux,
 consumption), function_app.py + host.json wrap the FastAPI app; only /tmp is writable (RFQ_OUT_DIR=/tmp/autorfq).
@@ -114,7 +118,9 @@ def get(url, data=None, timeout=60):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--target", choices=["functions", "webapp"], default="functions")
+    ap.add_argument("--target", choices=["functions", "webapp", "container"], default="functions")
+    ap.add_argument("--no-inbox", action="store_true",
+                    help="don't watch the inbox here (another deployment does: one inbox, one watcher)")
     ap.add_argument("--name", default="", help="app name (globally unique); default autorfq-<random>")
     ap.add_argument("--group", default="rg-autorfq")
     ap.add_argument("--location", default="centralindia")
@@ -126,6 +132,8 @@ def main():
     args = ap.parse_args()
 
     build_web(args.rebuild_web)
+    if args.target == "container":
+        return deploy_container(args)
     zip_path = package(args.target)
     if args.dry_run:
         return 0
@@ -138,7 +146,8 @@ def main():
 
     if not az("group", "exists", "-n", args.group):
         az("group", "create", "-n", args.group, "-l", args.location)
-    settings = {"SCM_DO_BUILD_DURING_DEPLOYMENT": "true", "RFQ_MODE": "no-browser", "RFQ_AUTO_BROWSER": "0"}
+    settings = {"SCM_DO_BUILD_DURING_DEPLOYMENT": "true", "RFQ_MODE": "no-browser", "RFQ_AUTO_BROWSER": "0",
+                "RFQ_INBOX_WATCH": "0" if args.no_inbox else "1"}
     if args.with_secrets:
         env = read_env()
         settings.update({k: env[k] for k in SECRET_KEYS if env.get(k)})
@@ -174,7 +183,65 @@ def main():
         az("webapp", "deploy", "-g", args.group, "-n", name, "--src-path", str(zip_path), "--type", "zip",
            "--track-status", "false")
 
-    url = f"https://{name}.azurewebsites.net"
+    return check_live(f"https://{name}.azurewebsites.net", args.group, name)
+
+
+def deploy_container(args):
+    """Live mode on Azure: the Docker image on Azure Container Apps."""
+    if args.dry_run:
+        return 0
+    account = az("account", "show")
+    print(f"subscription: {account['name']} ({account['user']['name']})")
+    state_file = ROOT / ".azure-container.json"
+    saved = json.loads(state_file.read_text()) if state_file.exists() else {}
+    name = args.name or saved.get("name") or f"autorfq-live-{os.urandom(2).hex()}"
+    registry = saved.get("registry") or ("acr" + name.replace("-", ""))[:50]
+    env_name = saved.get("environment") or "env-autorfq"
+    state_file.write_text(json.dumps({"name": name, "group": args.group, "registry": registry,
+                                      "environment": env_name}), encoding="utf-8")
+    if not az("group", "exists", "-n", args.group):
+        az("group", "create", "-n", args.group, "-l", args.location)
+    if az("acr", "show", "-g", args.group, "-n", registry, check=False) in (None, ""):
+        az("acr", "create", "-g", args.group, "-n", registry, "--sku", "Basic", "-l", args.location,
+           "--admin-enabled", "true")
+    server = az("acr", "show", "-g", args.group, "-n", registry)["loginServer"]
+    image = f"{server}/autorfq:{time.strftime('%Y%m%d-%H%M%S')}"
+    docker = shutil.which("docker")
+    if docker and subprocess.run([docker, "info"], capture_output=True).returncode == 0:
+        print(f"building and pushing {image} ...")
+        subprocess.run([docker, "build", "-t", image, "."], cwd=ROOT, check=True)
+        az("acr", "login", "-n", registry, capture=False)
+        subprocess.run([docker, "push", image], check=True)
+    else:
+        print(f"building {image} in Azure (az acr build) ...")
+        az("acr", "build", "-r", registry, "-t", image.split("/", 1)[1], str(ROOT), capture=False)
+    creds = az("acr", "credential", "show", "-n", registry)
+    if az("containerapp", "env", "show", "-g", args.group, "-n", env_name, check=False) in (None, ""):
+        print("creating the Container Apps environment (a few minutes) ...")
+        az("containerapp", "env", "create", "-g", args.group, "-n", env_name, "-l", args.location)
+
+    env = read_env() if args.with_secrets else {}
+    secrets = {k.lower().replace("_", "-"): env[k] for k in SECRET_KEYS if env.get(k)}
+    plain = {"RFQ_MODE": "live", "RFQ_INBOX_WATCH": "0" if args.no_inbox else "1"}
+    env_vars = [f"{k}={v}" for k, v in plain.items()]
+    env_vars += [f"{k}=secretref:{k.lower().replace('_', '-')}" for k in SECRET_KEYS if env.get(k)]
+    common = ["--image", image, "--cpu", "1", "--memory", "2Gi", "--min-replicas", "1", "--max-replicas", "1"]
+    if az("containerapp", "show", "-g", args.group, "-n", name, check=False) in (None, ""):
+        az("containerapp", "create", "-g", args.group, "-n", name, "--environment", env_name, *common,
+           "--ingress", "external", "--target-port", "8000", "--registry-server", server,
+           "--registry-username", creds["username"], "--registry-password", creds["passwords"][0]["value"],
+           *(["--secrets", *[f"{k}={v}" for k, v in secrets.items()]] if secrets else []),
+           "--env-vars", *env_vars)
+    else:
+        if secrets:
+            az("containerapp", "secret", "set", "-g", args.group, "-n", name,
+               "--secrets", *[f"{k}={v}" for k, v in secrets.items()])
+        az("containerapp", "update", "-g", args.group, "-n", name, *common, "--set-env-vars", *env_vars)
+    fqdn = az("containerapp", "show", "-g", args.group, "-n", name)["properties"]["configuration"]["ingress"]["fqdn"]
+    return check_live(f"https://{fqdn}", args.group, name)
+
+
+def check_live(url, group, name):
     print(f"waiting for {url} ...")
     for _ in range(60):
         try:
@@ -184,7 +251,7 @@ def main():
         except Exception:
             time.sleep(10)
     else:
-        sys.exit(f"{url} did not come up; see: az webapp log tail -g {args.group} -n {name}")
+        sys.exit(f"{url} did not come up; check the logs in the portal for {name} ({group})")
     check = get(f"{url}/api/selfcheck", data=b"", timeout=180)
     print(f"self-check on the live link: ok={check.get('ok')} rows={check.get('rows')} sources={check.get('sources')}")
     print(f"\nLive: {url}   upload page: {url}/rfq   dashboard: {url}/")
