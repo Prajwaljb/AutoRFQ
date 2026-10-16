@@ -7,13 +7,13 @@ import { cn } from "./ui/cn";
 
 const VIA: Record<string, string> = { live: "Live page", spec: "Spec sheet", catalog: "Catalog" };
 
-export function ItemCard({ item, flags, onOpen }: { item: Item; flags: number; onOpen: () => void }) {
+export function ItemCard({ item, flags, onOpen, delay = 0 }: { item: Item; flags: number; onOpen: () => void; delay?: number }) {
   const found = item.lookup_status === "Found";
   const picture = pictureOf(item);
   const price = item.extra?.["Price (USD)"];
   return (
-    <button onClick={onOpen} className="text-left" aria-label={`Open ${item.product_id}`}>
-      <Card className={cn("flex h-full flex-col overflow-hidden transition-colors duration-150 hover:border-accent", !found && "opacity-80")}>
+    <button onClick={onOpen} className="fade-up text-left" style={{ animationDelay: `${delay}ms` }} aria-label={`Open ${item.product_id}`}>
+      <Card className={cn("lift flex h-full flex-col overflow-hidden hover:border-accent", !found && "opacity-85")}>
         <div className="flex h-36 items-center justify-center bg-white">
           {picture ? (
             <img src={picture} alt="" loading="lazy" className="h-full w-full object-contain p-2" />

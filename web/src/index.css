@@ -118,3 +118,144 @@ body {
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------
+   Hackathon polish: aurora background, glass cards, glow and motion. Every effect shows real data and
+   prefers-reduced-motion (above) switches the motion off.
+   --------------------------------------------------------------------------------------------------- */
+.light,
+:root {
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 68, 106, 0.14);
+  --glow: rgba(0, 160, 221, 0.22);
+}
+.dark {
+  --glass: rgba(16, 34, 49, 0.62);
+  --glass-border: rgba(125, 211, 252, 0.16);
+  --glow: rgba(0, 160, 221, 0.35);
+}
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  animation: aurora-drift 22s ease-in-out infinite alternate;
+}
+.aurora::before {
+  background: radial-gradient(circle, rgba(0, 160, 221, 0.55), transparent 60%);
+  top: -30vmax;
+  left: -20vmax;
+}
+.aurora::after {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.35), transparent 60%);
+  bottom: -35vmax;
+  right: -25vmax;
+  animation-duration: 28s;
+}
+.light .aurora::before,
+.light .aurora::after {
+  opacity: 0.3;
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(8vmax, 6vmax, 0) scale(1.15); }
+}
+
+.glass {
+  background: var(--glass);
+  border-color: var(--glass-border) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.lift {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -18px var(--glow);
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, #00a0dd, #5eead4 45%, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.light .text-gradient {
+  background: linear-gradient(90deg, #00446a, #00a0dd 55%, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.btn-glow {
+  background: linear-gradient(90deg, #00a0dd, #22d3ee 50%, #5eead4);
+  color: #00263b !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 160, 221, 0.8);
+}
+.btn-glow:hover {
+  filter: brightness(1.08);
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.12) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: shimmer 4.5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  60%, 100% { transform: translateX(100%); }
+}
+
+.fade-up {
+  animation: fade-up 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.flow-line {
+  background-image: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: flow 1.8s linear infinite;
+}
+@keyframes flow {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.pulse-ring {
+  box-shadow: 0 0 0 0 rgba(0, 160, 221, 0.6);
+  animation: pulse-ring 1.6s ease-out infinite;
+}
+@keyframes pulse-ring {
+  to { box-shadow: 0 0 0 12px rgba(0, 160, 221, 0); }
+}
+
+.glow-success { box-shadow: 0 0 14px -4px rgba(34, 197, 94, 0.7); }
+.glow-warning { box-shadow: 0 0 14px -4px rgba(245, 158, 11, 0.8); }
+.glow-danger { box-shadow: 0 0 14px -4px rgba(244, 63, 94, 0.7); }
+.glow-info { box-shadow: 0 0 14px -4px rgba(0, 160, 221, 0.8); }
+
+/* Excel flag legend (same colours as RFQ.xlsx) */
+.mark-missing { background: #d9dee3; }
+.mark-code { background: #fde68a; }
+.mark-model { background: #fdba74; }

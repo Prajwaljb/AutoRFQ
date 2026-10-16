@@ -1,4 +1,5 @@
 """The web API: start runs, read them, review, approve, and refuse what it should refuse."""
+import os
 import time
 
 import pytest
@@ -104,3 +105,30 @@ def test_health_samples_selfcheck(client):
     assert len(client.get("/api/samples").json()["samples"]) == 4
     check = client.post("/api/selfcheck").json()
     assert check == {**check, "ok": True, "rows": "6/6", "sources": "105/105"}
+
+
+def test_upload_page(client):
+    assert "Build the RFQ" in client.get("/rfq").text
+    r = client.post("/rfq", files={"file": ("email-2.eml", (EMAILS / "email-2-ids-in-attachment.eml").read_bytes(),
+                                            "message/rfc822")})
+    assert r.status_code == 200 and "Download RFQ.xlsx" in r.text and "Quality agent" in r.text
+    import re
+    href = re.search(r'href="(/api/runs/[^"]+/files/RFQ\.xlsx)"', r.text).group(1)
+    assert client.get(href).status_code == 200
+    assert client.post("/rfq", files={"file": ("x.txt", b"5106912", "text/plain")}).status_code == 400
+
+
+def test_health_lists_settings_without_values(client):
+    settings = client.get("/api/health").json()["settings"]
+    assert set(settings) == {"mail", "ai", "search", "run"}
+    assert all(isinstance(v, bool) for group in settings.values() for v in group.values())
+
+
+def test_function_app_wraps_the_api(monkeypatch):
+    pytest.importorskip("azure.functions")
+    for name in ("RFQ_MODE", "RFQ_OUT_DIR", "RFQ_AUTO_BROWSER"):  # function_app sets cloud defaults:
+        monkeypatch.setenv(name, os.environ.get(name, ""))      # restore them after this test
+    import function_app
+    assert os.environ["RFQ_MODE"] in ("", "no-browser")
+    [fn] = function_app.app.get_functions()
+    assert fn.get_bindings()[0].route == "/{*route}"

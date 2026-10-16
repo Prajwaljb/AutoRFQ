@@ -43,7 +43,7 @@ export function HealthBar({ health }: { health: Health | null }) {
     <div className="flex items-center gap-2">
       <Pill icon={<Globe size={12} aria-hidden />} label="Chrome" value={chrome} ok={health.chrome}
         title="The scraping Chrome window for live ferguson.com pages. Live runs open it and close it when done." />
-      <Pill icon={<Bot size={12} aria-hidden />} label="AI review" value={health.ai ? "On" : "Off"} ok={health.ai}
+      <Pill icon={<Bot size={12} aria-hidden />} label="LLM check" value={health.ai ? "On" : "Off"} ok={health.ai}
         title="Azure OpenAI suggestions (advisory only)." />
       <Pill icon={<Inbox size={12} aria-hidden />} label="Inbox" value={health.inbox ? "Watching" : "Off"} ok={health.inbox}
         title="mailbot.py answering RFQ emails in the team inbox." />

@@ -43,16 +43,36 @@ can't be read.
    - a live/catalog difference;
    - every problem met on the way: an unreadable part or attachment, a blocked page, a skipped spec sheet,
      items over the limit, the time budget running out.
-6. **Quality agent (after the base):**
-   - Puts units in one standard: Length ft, Width in, Thickness mil, Weight lb. A bare `1000` becomes
-     `1000 ft`, and the Sources and Notes sheets record it.
-   - Flags missing or odd values, including the `[]` placeholder. Each rule flag has a severity; `high` is
-     only for values that are probably wrong.
-   - An LLM may add **AI suggestions**. They are advisory: they never write or change a value and never
-     change the status. If the LLM is not set up or fails, the rule flags still run and the Summary says
-     the AI review was skipped.
-   - Adds a Summary sheet: found / not found counts, fill rate, rule flags, AI suggestions, and the status
-     `Ready` or `Needs human review` (any open high-severity rule flag).
+6. **Quality agent (after the Excel is filled, before the reply). It flags; it never overwrites.**
+   - **Units (code):** Length ft, Width in, Thickness mil, Weight lb.
+     - A bare `1000` becomes `1000 ft`; `333.33 yds.` becomes `1000 ft`.
+     - A conversion that would contradict the description (`300 in` on a "300 ft." tape) or leave the
+       plausible range is not made: the value stays and is flagged.
+     - The Sources and Notes sheets record every change.
+   - **Blanks (code):** every empty spec cell on a found product is a `missing` flag (low), counted per column
+     and per product. A blank Description, Length or Width is high.
+   - **Suspicious values (code):**
+     - placeholders like `[]`;
+     - non-numeric or out-of-range measurements;
+     - a unit that isn't the column's standard;
+     - a Width, Length or colour that disagrees with the Description;
+     - an Application that disagrees with the Lettering and the APWA colour (water blue, sewer green, gas
+       yellow, electric red, telecom orange, reclaimed purple).
+   - **Odd values (model):** an LLM (OpenAI or Azure OpenAI) is asked only what code can't see: does a value
+     contradict the rest of the row? It sees product data only, never the email. A flag must quote the exact
+     cell value or it is dropped.
+     - Model flags are advisory: they never change a value or the status.
+     - If the key is missing or the call fails, units, blanks and rule flags still run, and the Summary says
+       the LLM check was skipped.
+   - **Marks in RFQ.xlsx:** every flagged cell is coloured (grey = missing by code, amber = suspicious by
+     code, orange = suspicious by model) and gets a comment with the reason. The value is left for a person.
+   - **Summary sheet:**
+     - overview counts (requested, found, found on the web, not found, spec cells filled, overall fill rate,
+       flags by type, units converted, the LLM check line);
+     - fill rate per column (of found and of all requested) and per product;
+     - every flag, by code or by model;
+     - request lines, alerts and suggested alternatives.
+   - **Status:** `Ready`, or `Needs human review` while any high-severity rule flag is open.
 7. **Save** `RFQ.xlsx`, `reply.eml`, `run.json` (run details and status) and `run.log`. The reply is written
    for the buyer:
    - how many products were found and not found;
@@ -95,7 +115,8 @@ can't be read.
   marked read so it is never retried in a loop.
 - Runs the same on Windows and Linux. All files are read and written as UTF-8 and all paths are built in
   code. If RFQ.xlsx is open in Excel, the flow saves a copy instead of failing.
-- Secrets (Gmail App Password, Azure keys) live in `.env` only, and never appear in logs.
+- Secrets (Gmail App Password, OpenAI / Azure keys) live in `.env` only (template `.env.example`; on Azure,
+  app settings), and never appear in logs or on screen.
 - Everything people see (web app, styled Excel, reply email) follows Ferguson's design language:
   - colours: navy `#00446a` as the primary colour, `#00a0dd` as the accent, and `#b2c7d2` / `#e6ecf0` as
     neutrals;
@@ -124,14 +145,25 @@ can't be read.
     It doesn't send runs with status `Needs human review`; those wait for approval in the web app.
   - `uvicorn app.main:app`: the web app (runs, review, approve & send), serving the built `web/dist`
     (`npm ci && npm run build` in `web/` first).
-  - **Azure App Service:** `python scripts/deploy_azure.py` (after `az login`). Startup command
-    `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`, with `RFQ_MODE=no-browser` and
-    `RFQ_OUT_DIR=/home/data/out` in App Settings.
+  - **Upload page:** `/rfq`. Upload an .eml and get a result page with a Download RFQ.xlsx button. It works
+    the same on Azure.
+  - **Azure:** `python scripts/deploy_azure.py [--with-secrets]` after `az login`.
+    - It deploys an Azure Function App (Python 3.12, Linux). `function_app.py` wraps the web app, and
+      `host.json` sets `routePrefix: ""`.
+    - App settings: `RFQ_MODE=no-browser` and `RFQ_OUT_DIR=/tmp/autorfq`.
+    - `--target webapp` deploys to App Service instead.
 - **Python path:** use the venv. On Windows that's `.venv\Scripts\python`; on Linux, `.venv/bin/python`.
 
 ## Done when
 - `--offline` on email 1: the RFQ and Sources sheets equal `reference/email-1 reference output.xlsx`, with
-  and without the quality agent, and the status is `Ready`.
+  and without the quality agent, and the status is `Ready`. The agent flags 5106891's Application (Water)
+  against its Lettering (Sewer, green tape) without changing it.
+- Quality agent:
+  - every length is in ft and every width in in, or flagged when it can't be changed safely;
+  - each flag points to the exact cell with a reason;
+  - the Summary shows the fill rate per column and per product.
+
+  Email 2 live flags 1432040's "300 in" Length against its "300 ft" description and holds the RFQ.
 - Building the same email twice gives the same values on every sheet, even when the lookups finish in a
   different order. An AI suggestion never changes a value or the status.
 - `--offline` on emails 2 to 4: `225123`, `9677533`, `17783-79-3000`, `31-024`, `MTX-4409-XQ` and

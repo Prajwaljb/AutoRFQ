@@ -32,7 +32,7 @@ def test_email1_sources_equal_reference_in_order(offline_builds):
 
 def test_email1_sheets_and_status(offline_builds):
     folder = offline_builds / "email-1-ids-in-body"
-    assert openpyxl.load_workbook(folder / "RFQ.xlsx").sheetnames[:3] == ["RFQ", "Sources", "Notes"]
+    assert openpyxl.load_workbook(folder / "RFQ.xlsx").sheetnames == ["RFQ", "Summary", "Sources", "Notes"]
     assert sheet_rows(folder / "RFQ.xlsx", "Notes") == []
     assert json.loads((folder / "run.json").read_text(encoding="utf-8"))["status"] == "ready"
 
@@ -82,3 +82,27 @@ def test_reply_eml(offline_builds):
     for word in ("flag", "severity", "DRAFT", " AI ", "fill rate"):
         assert word.lower() not in text.lower()
     assert msg["In-Reply-To"] == "<rfq-sample-4@sourcing.example.com>"
+
+
+def test_quality_agent_deck_cases(offline_builds):
+    """The agent slides' "Test with": email 1's Application/Lettering clash, email 2's bare numbers."""
+    e1 = json.loads((offline_builds / "email-1-ids-in-body" / "run.json").read_text(encoding="utf-8"))
+    clash = [f for f in e1["flags"] if f["rule"] == "application_mismatch"]
+    assert [(f["product_id"], f["column"]) for f in clash] == [("5106891", "Application")]
+    assert "sewer" in clash[0]["issue"] and e1["status"] == "ready"
+    ws = openpyxl.load_workbook(offline_builds / "email-1-ids-in-body" / "RFQ.xlsx")["RFQ"]
+    app = ws.cell(row=6, column=4)  # 5106891 is row 6, Application column D
+    assert app.value == "Water|Marking|Underground"  # flagged, never overwritten
+    assert app.comment is not None and "by code" in app.comment.text
+    osha = ws.cell(row=2, column=16)  # 5106912 OSHA is blank: grey missing mark
+    assert osha.value is None and osha.fill.start_color.rgb.endswith("D9DEE3")
+
+    e2 = offline_builds / "email-2-ids-in-attachment"
+    rows = {r[0]: r for r in sheet_rows(e2 / "RFQ.xlsx", "RFQ")}
+    header = [c.value for c in openpyxl.load_workbook(e2 / "RFQ.xlsx")["RFQ"][1]]
+    lengths = [rows[pid][header.index("Length")] for pid in rows if rows[pid][-1] == "Found"]
+    widths = [rows[pid][header.index("Width")] for pid in rows if rows[pid][-1] == "Found"]
+    assert all(v.endswith(" ft") for v in lengths if v) and all(v.endswith(" in") for v in widths if v)
+    summary = dict((r[0], r[1]) for r in sheet_rows(e2 / "RFQ.xlsx", "Summary") if len(r) > 1)
+    assert int(summary["Units converted"]) >= 10 and int(summary["Flagged: missing (by code)"]) > 0
+    assert summary["Suspicious-value check (LLM)"].startswith("LLM check skipped")

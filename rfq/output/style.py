@@ -10,6 +10,7 @@ NAVY, MIST, STEEL, WHITE = "00446A", "E6ECF0", "B2C7D2", "FFFFFF"
 FOUND_FILL, FOUND_TEXT = "DCFCE7", "166534"
 NOT_FOUND_FILL, NOT_FOUND_TEXT = "FFEDD5", "9A3412"
 REVIEW_FILL = "FEF08A"
+MISSING_FILL, CODE_FILL, MODEL_FILL = "D9DEE3", "FDE68A", "FDBA74"  # grey, amber, orange
 CONFIDENCE_FILL = {"high": "DCFCE7", "medium": "FEF9C3", "low": "FEE2E2"}
 FONT = "Inter"  # brand font; Excel substitutes a sans-serif where it is not installed
 
@@ -93,16 +94,40 @@ def style_notes(ws):
         ws.cell(row=r, column=2).alignment = Alignment(wrap_text=True, vertical="top")
 
 
-def review_marks(ws, result):
-    """While an RFQ is held: flagged cells get a yellow fill and a comment. Rebuilt without them on approval."""
+def flag_marks(ws, result):
+    """Flag, never overwrite: colour the flagged cell and add a comment with the reason; the value stays.
+
+    Grey = missing (by code), amber = suspicious (by code), orange = suspicious (by model). Resolved flags
+    get no mark, so the approved file is clean where a person decided.
+    """
     from openpyxl.comments import Comment
     row_of = {item.product_id: r for r, item in enumerate(result.items, start=2)}
+    marks = {}
     for flag in result.flags:
-        if flag.resolved or flag.severity not in ("high", "medium") or flag.column not in config.RFQ_COLUMNS:
+        if flag.resolved or flag.severity == "info" or flag.column not in config.RFQ_COLUMNS:
             continue
-        cell = ws.cell(row=row_of[flag.product_id], column=config.RFQ_COLUMNS.index(flag.column) + 1)
-        cell.fill = _fill(REVIEW_FILL)
-        cell.comment = Comment(f"{flag.severity.upper()}: {flag.issue} ({flag.rule})", "Quality agent")
+        kind = "missing" if flag.rule in ("missing", "missing_key_value") else "code"
+        marks.setdefault((flag.product_id, flag.column), []).append((kind, flag))
+    for flag in result.ai_suggestions:
+        if not flag.resolved and flag.column in config.RFQ_COLUMNS:
+            marks.setdefault((flag.product_id, flag.column), []).append(("model", flag))
+    for (pid, column), found in marks.items():
+        if pid not in row_of:
+            continue
+        cell = ws.cell(row=row_of[pid], column=config.RFQ_COLUMNS.index(column) + 1)
+        kinds = {k for k, _ in found}
+        colour = MODEL_FILL if "model" in kinds else CODE_FILL if "code" in kinds else MISSING_FILL
+        cell.fill = _fill(colour)
+        text = "\n".join(f"{f.severity.upper()} ({'by model' if k == 'model' else 'by code'}, {f.rule}): {f.issue}"
+                         for k, f in found)
+        comment = Comment(text, "AutoRFQ quality agent")
+        comment.width, comment.height = 320, 90 + 30 * len(found)
+        cell.comment = comment
+
+
+def review_marks(ws, result):
+    """Kept for callers of the old name."""
+    flag_marks(ws, result)
 
 
 def apply(wb, result):
@@ -110,6 +135,8 @@ def apply(wb, result):
     style_sources(wb["Sources"])
     if "Notes" in wb.sheetnames:
         style_notes(wb["Notes"])
-    if result.status.value == "needs_review":
-        review_marks(wb["RFQ"], result)
+    if result.quality_ran:
+        flag_marks(wb["RFQ"], result)
+    if "Summary" in wb.sheetnames:
+        wb["Summary"].sheet_properties.tabColor = NAVY
     return wb

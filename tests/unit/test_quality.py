@@ -19,9 +19,20 @@ import rfq.quality as quality
     ("Thickness", "0.004 in", ("4 mil", "converted")),
     ("Weight", "14.25", ("14.25 lb", "unit added")),
     ("Weight", "about 3 kg", ("about 3 kg", None)),
+    ("Length", "333.33 yds.", ("1000 ft", "converted")),
 ])
 def test_standardise(column, value, expected):
     assert units.standardise(column, value) == expected
+
+
+def test_never_a_quiet_fix():
+    """"300 in" on a 300 ft tape is a typo: left unchanged, and flagged by the rules."""
+    assert units.standardise("Length", "300 in", "6 in. x 300 ft. Detectable Sewer Tape") == ("300 in", None)
+    assert units.standardise("Length", "9000 m") == ("9000 m", None)  # implausible after conversion
+    it = item(Description="6 in. x 300 ft. Detectable Sewer Tape", Length="300 in", Width="6 in",
+              Thickness="5 mil", Material="Plastic", Color_Finish="Green")
+    found = {(f.column, f.rule, f.severity) for f in rules.check_item(it)}
+    assert ("Length", "wrong_unit", "high") in found
 
 
 def cell(v):
@@ -35,7 +46,8 @@ def item(**cells):
 
 
 def rules_of(it):
-    return {(f.column, f.rule, f.severity) for f in rules.check_item(it)}
+    """Rule flags other than blanks (every blank is a low "missing" flag)."""
+    return {(f.column, f.rule, f.severity) for f in rules.check_item(it) if f.rule != "missing"}
 
 
 def test_normalise_keeps_the_source_and_notes_it():
@@ -53,12 +65,17 @@ def test_rule_flags():
     assert rules_of(clean) == set()
     wrong = item(Description='6 in x 1000 ft Blue Detector Tape', Length="1000 ft", Width="3 in",
                  Thickness="5 mil", Material="Plastic", Color_Finish="Red", Product_details="[]")
+    assert ("Lettering", "missing", "low") in {(f.column, f.rule, f.severity) for f in rules.check_item(wrong)}
     assert rules_of(wrong) == {("Width", "description_mismatch", "high"),
                                ("Color Finish", "description_mismatch", "medium"),
                                ("Product details", "placeholder", "medium")}
     assert ("Length", "missing_key_value", "high") in rules_of(item(Description="tape", Width="6 in"))
     assert ("Width", "out_of_range", "high") in rules_of(item(Description="tape", Length="1000 ft",
                                                               Width="60 in"))
+    clash = item(Description="6 in x 1000 ft Green Detector Tape", Length="1000 ft", Width="6 in",
+                 Application="Water|Marking|Underground", Lettering="Caution Buried Sewer Line Below",
+                 Color_Finish="Green")
+    assert ("Application", "application_mismatch", "medium") in rules_of(clash)
 
 
 def test_email1_is_ready_and_unchanged():
@@ -69,7 +86,7 @@ def test_email1_is_ready_and_unchanged():
     out = Path(tempfile.mkdtemp())
     result, folder = pipeline.run(EMAILS / "email-1-ids-in-body.eml", out, mode="offline")
     assert result.status == RunStatus.READY and result.units_converted == 0
-    assert [f for f in result.flags if f.severity != "info"] == []
+    assert [f for f in result.flags if f.severity == "high"] == []
     ref = config.REFERENCE
     assert sheet_rows(folder / "RFQ.xlsx", "RFQ") == sheet_rows(ref, "RFQ")
 
@@ -117,7 +134,7 @@ def test_ai_failures_are_skipped(monkeypatch, fake):
     monkeypatch.setattr(llm, "enabled", lambda: True)
     monkeypatch.setattr(llm, "_client", lambda: fake)
     quality.run(r)
-    assert r.ai_suggestions == [] and "skipped 1" in r.ai_status and r.status == RunStatus.READY
+    assert r.ai_suggestions == [] and "skipped" in r.ai_status and r.status == RunStatus.READY
 
 
 def test_ai_not_configured(monkeypatch):
@@ -125,7 +142,10 @@ def test_ai_not_configured(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     r = found_result()
     quality.run(r)
-    assert r.ai_status == "AI review skipped: Azure OpenAI is not configured"
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    r = found_result()
+    quality.run(r)
+    assert r.ai_status == "LLM check skipped: no OpenAI or Azure OpenAI key set"
 
 
 def test_fill_rate_and_request_lines():
@@ -134,6 +154,13 @@ def test_fill_rate_and_request_lines():
     r.items[0].extra = {"Price (USD)": "139.02", "Availability": "OutOfStock"}
     overall, by_column = summary.fill_rates(r)
     assert overall == round(100 * 6 / len(summary.FILL_COLUMNS), 1)
+    assert summary.product_fill(r)[0][2:4] == (6, len(summary.FILL_COLUMNS))
     lines, total = summary.request_lines(r)
     assert lines[0][4] == 1390.2 and total == 1390.2
     assert any("Out of stock" in a for _, a in summary.alerts(r))
+
+
+def test_openai_key_is_enough(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-test")
+    assert llm.enabled() and llm.model_name() == "gpt-test" and llm.settings()[0] == "openai"

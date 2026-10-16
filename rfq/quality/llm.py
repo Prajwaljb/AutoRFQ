@@ -1,4 +1,7 @@
-"""Optional AI review with Azure OpenAI. Advisory only.
+"""The LLM check (by model), with OpenAI or Azure OpenAI. Advisory only.
+
+It asks only what code can't see: does a value look wrong or contradict the rest of the row? Units, blanks
+and the contradictions rules.py can measure are done by code first.
 
 One call per found row with the row's values and their sources (never the raw email, so instructions
 hidden in an email can't reach the model). The model returns JSON flags {column, issue, severity,
@@ -46,21 +49,35 @@ SYSTEM = ("You check one row of a supplier RFQ for marking and detector tapes. R
 
 
 def settings():
+    """("azure", endpoint, key, deployment, version) or ("openai", None, key, model, None), or None."""
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
-    key = os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
     deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "").strip()
-    version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21").strip()
-    return (endpoint, key, deployment, version) if endpoint and key and deployment else None
+    if endpoint and azure_key and deployment:
+        version = os.environ.get("AZURE_OPENAI_API_VERSION", "").strip() or "2024-10-21"
+        return ("azure", endpoint, azure_key, deployment, version)
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if key:
+        return ("openai", None, key, os.environ.get("OPENAI_MODEL", "").strip() or "gpt-4o-mini", None)
+    return None
 
 
 def enabled():
     return settings() is not None
 
 
+def model_name():
+    s = settings()
+    return s[3] if s else ""
+
+
 def _client():
-    from openai import AzureOpenAI
-    endpoint, key, _, version = settings()
-    return AzureOpenAI(azure_endpoint=endpoint, api_key=key, api_version=version, timeout=30, max_retries=2)
+    provider, endpoint, key, _, version = settings()
+    if provider == "azure":
+        from openai import AzureOpenAI
+        return AzureOpenAI(azure_endpoint=endpoint, api_key=key, api_version=version, timeout=30, max_retries=2)
+    from openai import OpenAI
+    return OpenAI(api_key=key, timeout=30, max_retries=2)
 
 
 def _row(item):
@@ -72,15 +89,15 @@ def review(result, logger=None, client=None):
     """(suggestions, status text). Never raises."""
     found = [i for i in result.items if i.found]
     if not found:
-        return [], "AI review: nothing to review"
+        return [], "LLM check: nothing to check (no found products)"
     if client is None:
         if not enabled():
-            return [], "AI review skipped: Azure OpenAI is not configured"
+            return [], "LLM check skipped: no OpenAI or Azure OpenAI key set"
         try:
             client = _client()
         except Exception as e:
-            return [], f"AI review skipped: {type(e).__name__}"
-    deployment = (settings() or ("", "", "model", ""))[2]
+            return [], f"LLM check skipped: {type(e).__name__}"
+    deployment = model_name() or "model"
     suggestions, skipped, reasons = [], 0, set()
     started = time.monotonic()
     for item in found:
@@ -96,7 +113,6 @@ def review(result, logger=None, client=None):
                           {"role": "user", "content": json.dumps({"product_id": item.product_id, "row": row},
                                                                  ensure_ascii=False)}],
                 response_format={"type": "json_schema", "json_schema": SCHEMA},
-                temperature=0,
             )
             data = json.loads(resp.choices[0].message.content or "{}")
             flags = data.get("flags", []) if isinstance(data, dict) else []
@@ -117,7 +133,11 @@ def review(result, logger=None, client=None):
             suggestions.append(Flag(id=f"{item.index}:{column}:ai{n}", product_id=item.product_id,
                                     column=column, value=quoted, issue=str(f.get("issue", ""))[:300],
                                     rule="ai_review", severity=severity, origin="ai"))
-    status = f"AI review ran on {len(found) - skipped} of {len(found)} rows"
-    if skipped:
-        status += f"; skipped {skipped} ({', '.join(sorted(reasons))})"
+    ran = len(found) - skipped
+    if ran == 0:
+        status = f"LLM check skipped: every call failed ({', '.join(sorted(reasons))}); skipped {skipped}"
+    else:
+        status = f"LLM check ran ({deployment}, {len(suggestions)} flag{'s' if len(suggestions) != 1 else ''}) on {ran} of {len(found)} rows"
+        if skipped:
+            status += f"; skipped {skipped} ({', '.join(sorted(reasons))})"
     return suggestions, status

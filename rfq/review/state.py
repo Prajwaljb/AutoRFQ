@@ -57,7 +57,8 @@ def view(run_dir):
     run = load_run(run_dir)
     review = load(run_dir)
     decided = latest(review)
-    flags = [dict(f, decision=decided.get(f["id"])) for f in run.get("flags", []) if f["severity"] != "info"]
+    flags = [dict(f, decision=decided.get(f["id"])) for f in run.get("flags", [])
+             if f["severity"] in ("high", "medium")]  # blanks (low) are counted, not reviewed one by one
     ai = [dict(f, decision=decided.get(f["id"])) for f in run.get("ai_suggestions", [])]
     high_open = [f for f in flags if f["severity"] == "high" and not f["decision"] and not f.get("resolved")]
     can_approve = run.get("status") in ("needs_review", "ready") and not high_open
@@ -67,7 +68,8 @@ def view(run_dir):
         reason = f"Resolve {len(high_open)} high-severity flag{'s' if len(high_open) != 1 else ''} first."
     else:
         reason = ""
-    return {"version": review["version"], "flags": flags, "ai_suggestions": ai,
+    missing = sum(1 for f in run.get("flags", []) if f.get("rule") == "missing")
+    return {"version": review["version"], "flags": flags, "ai_suggestions": ai, "missing": missing,
             "resolved": sum(1 for f in flags if f["decision"] or f.get("resolved")), "total": len(flags),
             "can_approve": can_approve, "approve_blocked_reason": reason, "decisions": review["decisions"]}
 

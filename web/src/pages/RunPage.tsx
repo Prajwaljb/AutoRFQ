@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download, FileText, LayoutGrid, List, MailCheck, ShieldCheck } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Download, FileText, LayoutGrid, List, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
 import { api, fileUrl, subscribeEvents } from "../lib/api";
 import type { Flag, Item, PipelineEvent, Run, RunDetail } from "../lib/types";
 import { availability, estimatedTotal, money, senderLabel, sourceLabel } from "../lib/format";
@@ -8,7 +8,8 @@ import { severityTone, statusInfo } from "../lib/status";
 import { StatusBadge, LookupBadge } from "../components/StatusBadge";
 import { ItemCard, ItemCardSkeleton } from "../components/ItemCard";
 import { SourceSheet } from "../components/SourceSheet";
-import { PipelineSteps } from "../components/PipelineSteps";
+import { PipelineSteps, stepState } from "../components/PipelineSteps";
+import { Confetti, CountUp, FillRing, PipelineStrip } from "../components/fx";
 import { EmailView } from "../components/EmailView";
 import { Button, LinkButton } from "../components/ui/button";
 import { Badge, Card, Dialog, ErrorBox, Skeleton, Tabs } from "../components/ui/primitives";
@@ -18,11 +19,67 @@ import { useReviewer } from "./ReviewPage";
 type Tab = "items" | "email" | "sources" | "notes" | "activity";
 const MANUAL_MINUTES_PER_ITEM = 6;
 
+function describeEvent(e: PipelineEvent): string {
+  const pid = e.product_id ? ` ${e.product_id}` : "";
+  switch (e.type) {
+    case "email_read": return `read the email: ${e.subject ?? ""}`;
+    case "item_found": return `found item${pid}`;
+    case "lookup_start": return `looking up${pid} (${e.source})`;
+    case "lookup_done": return `${e.found ? "got" : "no result for"}${pid} from ${e.source}${e.error ? ` – ${e.error}` : ""}`;
+    case "spec_pdf_read": return `read the spec sheet for${pid}`;
+    case "alternatives": return `suggested alternatives for${pid}`;
+    case "quality_flag": return `flagged${pid} ${e.column}: ${String(e.rule).replaceAll("_", " ")}`;
+    case "excel_saved": return "saved RFQ.xlsx";
+    case "reply_saved": return "wrote the reply";
+    case "run_done": return `done: ${e.status}`;
+    default: return e.type;
+  }
+}
+
+/** What the quality agent did, in the same colours as the Excel: grey missing, amber code, orange model. */
+function AgentFindings({ run }: { run: Run }) {
+  const code = run.flags.filter((f) => !f.resolved && (f.severity === "high" || f.severity === "medium"));
+  const missing = run.counts.missing ?? run.flags.filter((f) => f.rule === "missing").length;
+  const model = run.ai_suggestions ?? [];
+  return (
+    <Card className="fade-up p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 font-semibold"><Sparkles size={16} className="text-accent" aria-hidden /> Agent findings</h2>
+          <p className="text-xs text-muted">Flags, never overwrites: every value stays for a person to decide. Same colours as RFQ.xlsx.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1"><span className="mark-missing h-2.5 w-2.5 rounded-sm" /> {missing} missing · code</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1"><span className="mark-code h-2.5 w-2.5 rounded-sm" /> {code.length} suspicious · code</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1"><span className="mark-model h-2.5 w-2.5 rounded-sm" /> {model.length} suspicious · model</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1">{run.units_converted} units standardised</span>
+        </div>
+      </div>
+      {(code.length > 0 || model.length > 0) && (
+        <ul className="mt-4 grid gap-2 md:grid-cols-2">
+          {[...code.map((f) => ({ f, by: "code" })), ...model.map((f) => ({ f, by: "model" }))].slice(0, 8).map(({ f, by }, i) => (
+            <li key={f.id} className="fade-up flex items-start gap-3 rounded-lg border border-border bg-surface-2/60 p-3 text-sm" style={{ animationDelay: `${i * 50}ms` }}>
+              <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-sm ${by === "model" ? "mark-model" : "mark-code"}`} aria-hidden />
+              <span className="min-w-0">
+                <span className="font-mono text-xs text-muted">{f.product_id}</span> · <span className="font-medium">{f.column}</span>
+                <Badge tone={severityTone(f.severity)} className="ml-2">{f.severity}</Badge>
+                <Badge className="ml-1">by {by}</Badge>
+                <span className="mt-0.5 block text-muted">{f.issue}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-xs text-muted">{run.ai_status}.</p>
+    </Card>
+  );
+}
+
 function Kpi({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
-    <Card className="p-3">
+    <Card className="lift p-3">
       <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
-      <div className="tabular mt-1 text-xl font-semibold">{value}</div>
+      <div className="tabular mt-1 text-2xl font-bold text-gradient">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-muted">{hint}</div>}
     </Card>
   );
@@ -41,6 +98,8 @@ export function RunPage() {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [celebrate, setCelebrate] = useState(() => ((location.state as { celebrate?: boolean } | null)?.celebrate ? 1 : 0));
   const [reviewer, askReviewer] = useReviewer();
 
   const load = useCallback(() => {
@@ -91,7 +150,10 @@ export function RunPage() {
     try {
       const r = await api.approve(id, name, send);
       if (r.send_error) toast(`Approved, but not sent: ${r.send_error}`, "danger");
-      else toast(r.sent_to ? `Sent to ${r.sent_to}.` : "Approved. The RFQ and reply were rebuilt.");
+      else {
+        toast(r.sent_to ? `Sent to ${r.sent_to}.` : "Approved. The RFQ and reply were rebuilt.");
+        setCelebrate((n) => n + 1);
+      }
       setConfirm(false);
       load();
     } catch (e) {
@@ -190,24 +252,36 @@ export function RunPage() {
       </div>
 
       {processing && (
-        <Card className="space-y-3 p-4">
-          <PipelineSteps events={events} />
-          <p className="text-sm text-muted">Building the RFQ. Cards appear when the lookups finish.</p>
+        <Card className="space-y-4 p-5">
+          <PipelineStrip active={stepState(events) + (stepState(events) > 0 ? 1 : 0)} />
+          <ol className="space-y-1 font-mono text-xs text-muted" aria-live="polite">
+            {events.slice(-5).map((e, i) => (
+              <li key={i} className="fade-up">› {describeEvent(e)}</li>
+            ))}
+            {!events.length && <li>› starting…</li>}
+          </ol>
         </Card>
       )}
       {s.error && <ErrorBox message={s.error} />}
 
       {run?.counts && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <Kpi label="Items" value={run.counts.items} />
-          <Kpi label="Found" value={run.counts.found}
-            hint={`live ${run.counts.by_source.live} · catalog ${run.counts.by_source.catalog}`} />
-          <Kpi label="Not found" value={run.counts.not_found} />
-          <Kpi label="Flags" value={run.counts.flags} hint={run.counts.high_flags ? `${run.counts.high_flags} high` : "none high"} />
-          <Kpi label="Units standardised" value={run.units_converted ?? 0} />
-          <Kpi label="Est. value" value={total ? money(total) : "—"} hint={total ? "price × qty" : "no quantities"} />
+        <div className="grid gap-3 lg:grid-cols-[auto_1fr]">
+          <Card className="flex items-center justify-center p-4">
+            <FillRing value={run.counts.fill_rate ?? 0} />
+          </Card>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <Kpi label="Items" value={<CountUp value={run.counts.items} />} />
+            <Kpi label="Found" value={<CountUp value={run.counts.found} />}
+              hint={`live ${run.counts.by_source.live} · catalog ${run.counts.by_source.catalog}`} />
+            <Kpi label="Not found" value={<CountUp value={run.counts.not_found} />} />
+            <Kpi label="To check" value={<CountUp value={run.counts.flags} />} hint={run.counts.high_flags ? `${run.counts.high_flags} high` : "none high"} />
+            <Kpi label="Units standardised" value={<CountUp value={run.units_converted ?? 0} />} />
+            <Kpi label="Est. value" value={total ? <CountUp value={total} decimals={2} prefix="$" /> : "—"} hint={total ? "price × qty" : "no quantities"} />
+          </div>
         </div>
       )}
+
+      {run?.quality_ran && <AgentFindings run={run} />}
 
       <Tabs
         label="Run details"
@@ -240,8 +314,9 @@ export function RunPage() {
             </div>
           ) : layout === "cards" ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {items.map((item) => (
-                <ItemCard key={item.product_id} item={item} flags={(flagsByItem[item.product_id] ?? []).length} onOpen={() => setOpen(item)} />
+              {items.map((item, i) => (
+                <ItemCard key={item.product_id} item={item} delay={Math.min(i, 12) * 45}
+                  flags={(flagsByItem[item.product_id] ?? []).length} onOpen={() => setOpen(item)} />
               ))}
             </div>
           ) : (
@@ -346,6 +421,7 @@ export function RunPage() {
         </Card>
       )}
 
+      <Confetti fire={celebrate} />
       <SourceSheet
         item={open}
         flags={open ? flagsByItem[open.product_id] ?? [] : []}

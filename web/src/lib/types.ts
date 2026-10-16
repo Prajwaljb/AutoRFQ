@@ -23,6 +23,9 @@ export interface RunSummary {
   not_found: number;
   flags: number;
   high_flags: number;
+  missing: number;
+  fill_rate: number;
+  units_converted: number;
   updated: number;
   error: string;
 }
@@ -95,6 +98,7 @@ export interface ReviewState {
   ai_suggestions: ReviewFlag[];
   resolved: number;
   total: number;
+  missing: number;
   can_approve: boolean;
   approve_blocked_reason: string;
   decisions: Decision[];
@@ -116,6 +120,9 @@ export interface Run {
     by_source: { live: number; spec: number; catalog: number };
     flags: number;
     high_flags: number;
+    missing: number;
+    ai_flags: number;
+    fill_rate: number;
     warnings: number;
   };
   quality_ran: boolean;
@@ -147,6 +154,7 @@ export interface Health {
   mode: string;
   forced_mode: string | null;
   running: string[];
+  settings?: Record<string, Record<string, boolean>>;
 }
 
 export interface PipelineEvent {

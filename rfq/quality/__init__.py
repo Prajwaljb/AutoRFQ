@@ -16,13 +16,13 @@ def run(result, logger=None, events=None, use_llm=True):
             result.units_converted += units.normalise(item, result)
     result.flags = rules.check(result)
     if events is not None:
-        for flag in result.flags:
+        for flag in (f for f in result.flags if f.severity != "low"):
             events.emit("quality_flag", product_id=flag.product_id, column=flag.column, rule=flag.rule,
                         severity=flag.severity)
     if use_llm:
         result.ai_suggestions, result.ai_status = llm.review(result, logger)
     else:
-        result.ai_suggestions, result.ai_status = [], "AI review turned off"
+        result.ai_suggestions, result.ai_status = [], "LLM check turned off"
     result.quality_ran = True
     result.status = status_of(result)
     return result

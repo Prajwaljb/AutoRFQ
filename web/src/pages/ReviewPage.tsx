@@ -116,7 +116,7 @@ export function ReviewPage() {
       const r = await api.approve(id, name, canSend);
       if (r.send_error) toast(`Approved, but not sent: ${r.send_error}`, "danger");
       else toast(r.sent_to ? `Approved and sent to ${r.sent_to}.` : "Approved. RFQ.xlsx and the reply were rebuilt without review marks.");
-      navigate(`/runs/${encodeURIComponent(id)}`);
+      navigate(`/runs/${encodeURIComponent(id)}`, { state: { celebrate: !r.send_error } });
     } catch (e) {
       toast(String((e as Error).message), "danger");
     } finally {
@@ -138,6 +138,7 @@ export function ReviewPage() {
         </div>
         <div className="text-sm text-muted" aria-live="polite">
           <span className="tabular font-semibold text-text">{review.resolved} of {review.total}</span> resolved
+          {review.missing ? <> · {review.missing} blank cells (counted on the Summary, not reviewed one by one)</> : null}
           {reviewer && <> · reviewing as <button className="underline" onClick={askReviewer}>{reviewer}</button></>}
         </div>
       </div>

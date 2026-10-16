@@ -118,10 +118,23 @@ class RunResult:
             "found": len(found),
             "not_found": len(self.items) - len(found),
             "by_source": by_source,
-            "flags": len([f for f in self.flags if not f.resolved and f.severity != "info"]),
+            "flags": len([f for f in self.flags if not f.resolved and f.severity in ("high", "medium")]),
             "high_flags": len([f for f in self.flags if not f.resolved and f.severity == "high"]),
+            "missing": len([f for f in self.flags if f.rule == "missing" and not f.resolved]),
+            "ai_flags": len(self.ai_suggestions),
+            "fill_rate": self.fill_rate(),
             "warnings": len(self.warnings),
         }
+
+    def fill_rate(self):
+        """% of spec cells filled over found items (Image mirrors Picture, so it isn't counted)."""
+        from rfq.config import SPEC_COLUMNS
+        columns = [c for c in SPEC_COLUMNS if c != "Image"]
+        found = [i for i in self.items if i.found]
+        if not found:
+            return 0.0
+        filled = sum(1 for i in found for c in columns if c in i.cells and i.cells[c].value)
+        return round(100 * filled / (len(found) * len(columns)), 1)
 
     def to_dict(self):
         """What goes into run.json (no timings)."""

@@ -8,7 +8,7 @@ export function StatusBadge({ status }: { status: string }) {
   const info = statusInfo(status);
   const Icon = ICONS[info.icon];
   return (
-    <Badge tone={info.tone}>
+    <Badge tone={info.tone} className={info.tone !== "neutral" ? `glow-${info.tone}` : undefined}>
       <Icon size={12} className={info.icon === "loader" ? "animate-spin" : undefined} aria-hidden />
       <span title={info.hint}>{info.label}</span>
     </Badge>

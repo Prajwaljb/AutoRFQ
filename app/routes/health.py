@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from app import settings
 from app.services import runner, store
 from rfq import config
+from rfq.infra import env
 from rfq.quality import llm
 from rfq.sources.ferguson_live import chrome_available
 
@@ -26,6 +27,7 @@ def health():
         "mode": settings.default_mode(),
         "forced_mode": forced or None,
         "running": runner.running(),
+        "settings": env.status(),  # which keys are set (never their values)
     }
 
 

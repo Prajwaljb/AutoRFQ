@@ -2,6 +2,10 @@
 import os
 from pathlib import Path
 
+from rfq.infra import env
+
+env.load()  # .env -> environment, before any setting below is read
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

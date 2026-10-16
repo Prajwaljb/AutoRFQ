@@ -1,8 +1,12 @@
-"""Deploys AutoRFQ to Azure App Service (Linux, Python) and checks the live link.
+"""Deploys AutoRFQ to Azure and checks the live link.
 
-    az login                       # with MFA, once
-    python scripts/deploy_azure.py [--name autorfq-xyz] [--group rg-autorfq] [--location centralindia]
-                                   [--sku F1] [--with-secrets] [--dry-run]
+    az logout && az login          # after setting up MFA at portal.azure.com (AADSTS50076/50079)
+    python scripts/deploy_azure.py [--target functions|webapp] [--name autorfq-xyz] [--group rg-autorfq]
+                                   [--location centralindia] [--with-secrets] [--dry-run]
+
+--target functions (default, as on Day 3): resource group, storage account, Function App (Python 3.12, Linux,
+consumption), function_app.py + host.json wrap the FastAPI app; only /tmp is writable (RFQ_OUT_DIR=/tmp/autorfq).
+--target webapp: App Service (Linux, Python 3.12, F1) instead.
 
 What it does:
 1. builds the web UI (npm ci && npm run build in web/) unless web/dist is up to date,
@@ -26,7 +30,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INCLUDE = ["app", "rfq", "data", "templates", "reference", "emails", "mailbot.py", "requirements.txt", "spec.md"]
+INCLUDE = ["app", "rfq", "data", "templates", "reference", "emails", "mailbot.py", "spec.md"]
+FUNCTION_FILES = ["function_app.py", "host.json"]
 SKIP_PARTS = {"__pycache__", ".pytest_cache", "node_modules"}
 STARTUP = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 SECRET_KEYS = ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION",
@@ -61,9 +66,21 @@ def build_web(force=False):
     subprocess.run([npm, "run", "build"], cwd=web, check=True)
 
 
-def package():
-    path = Path(tempfile.gettempdir()) / "autorfq-deploy.zip"
+def cloud_requirements(target):
+    """requirements.txt for the cloud: no playwright (no browser there), plus azure-functions for Functions."""
+    lines = [l for l in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+             if not l.strip().lower().startswith(("playwright", "pytest"))]
+    if target == "functions":
+        lines.append("azure-functions>=1.18")
+    return "\n".join(lines) + "\n"
+
+
+def package(target="functions"):
+    path = Path(tempfile.gettempdir()) / f"autorfq-{target}.zip"
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("requirements.txt", cloud_requirements(target))
+        for name in FUNCTION_FILES if target == "functions" else []:
+            z.write(ROOT / name, name)
         for name in INCLUDE:
             src = ROOT / name
             files = [src] if src.is_file() else [p for p in src.rglob("*") if p.is_file()]
@@ -96,7 +113,8 @@ def get(url, data=None, timeout=60):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--name", default="", help="web app name (globally unique); default autorfq-<random>")
+    ap.add_argument("--target", choices=["functions", "webapp"], default="functions")
+    ap.add_argument("--name", default="", help="app name (globally unique); default autorfq-<random>")
     ap.add_argument("--group", default="rg-autorfq")
     ap.add_argument("--location", default="centralindia")
     ap.add_argument("--plan", default="plan-autorfq")
@@ -107,7 +125,7 @@ def main():
     args = ap.parse_args()
 
     build_web(args.rebuild_web)
-    zip_path = package()
+    zip_path = package(args.target)
     if args.dry_run:
         return 0
 
@@ -119,24 +137,41 @@ def main():
 
     if not az("group", "exists", "-n", args.group):
         az("group", "create", "-n", args.group, "-l", args.location)
-    if az("appservice", "plan", "show", "-g", args.group, "-n", args.plan, check=False) in (None, ""):
-        az("appservice", "plan", "create", "-g", args.group, "-n", args.plan, "--is-linux", "--sku", args.sku,
-           "-l", args.location)
-    if az("webapp", "show", "-g", args.group, "-n", name, check=False) in (None, ""):
-        az("webapp", "create", "-g", args.group, "-p", args.plan, "-n", name, "--runtime", "PYTHON:3.12")
-    state_file.write_text(json.dumps({"name": name, "group": args.group}), encoding="utf-8")
-
-    settings = {"SCM_DO_BUILD_DURING_DEPLOYMENT": "true", "RFQ_MODE": "no-browser", "RFQ_AUTO_BROWSER": "0",
-                "RFQ_OUT_DIR": "/home/data/out", "WEBSITES_CONTAINER_START_TIME_LIMIT": "600"}
+    settings = {"SCM_DO_BUILD_DURING_DEPLOYMENT": "true", "RFQ_MODE": "no-browser", "RFQ_AUTO_BROWSER": "0"}
     if args.with_secrets:
         env = read_env()
         settings.update({k: env[k] for k in SECRET_KEYS if env.get(k)})
-    az("webapp", "config", "appsettings", "set", "-g", args.group, "-n", name, "--settings",
-       *[f"{k}={v}" for k, v in settings.items()])
-    az("webapp", "config", "set", "-g", args.group, "-n", name, "--startup-file", STARTUP)
-    print("deploying (Oryx installs requirements.txt; this takes a few minutes) ...")
-    az("webapp", "deploy", "-g", args.group, "-n", name, "--src-path", str(zip_path), "--type", "zip",
-       "--track-status", "false")
+
+    if args.target == "functions":
+        storage = ("st" + "".join(ch for ch in name if ch.isalnum()))[:24].lower()
+        if az("storage", "account", "show", "-g", args.group, "-n", storage, check=False) in (None, ""):
+            az("storage", "account", "create", "-g", args.group, "-n", storage, "-l", args.location,
+               "--sku", "Standard_LRS", "--allow-blob-public-access", "false")
+        if az("functionapp", "show", "-g", args.group, "-n", name, check=False) in (None, ""):
+            az("functionapp", "create", "-g", args.group, "-n", name, "--storage-account", storage,
+               "--consumption-plan-location", args.location, "--runtime", "python", "--runtime-version", "3.12",
+               "--functions-version", "4", "--os-type", "linux")
+        state_file.write_text(json.dumps({"name": name, "group": args.group, "target": "functions"}), encoding="utf-8")
+        settings.update({"RFQ_OUT_DIR": "/tmp/autorfq", "ENABLE_ORYX_BUILD": "true"})
+        az("functionapp", "config", "appsettings", "set", "-g", args.group, "-n", name, "--settings",
+           *[f"{k}={v}" for k, v in settings.items()])
+        print("deploying (remote build installs requirements.txt; a few minutes) ...")
+        az("functionapp", "deployment", "source", "config-zip", "-g", args.group, "-n", name,
+           "--src", str(zip_path), "--build-remote", "true", "--timeout", "900")
+    else:
+        if az("appservice", "plan", "show", "-g", args.group, "-n", args.plan, check=False) in (None, ""):
+            az("appservice", "plan", "create", "-g", args.group, "-n", args.plan, "--is-linux", "--sku", args.sku,
+               "-l", args.location)
+        if az("webapp", "show", "-g", args.group, "-n", name, check=False) in (None, ""):
+            az("webapp", "create", "-g", args.group, "-p", args.plan, "-n", name, "--runtime", "PYTHON:3.12")
+        state_file.write_text(json.dumps({"name": name, "group": args.group, "target": "webapp"}), encoding="utf-8")
+        settings.update({"RFQ_OUT_DIR": "/home/data/out", "WEBSITES_CONTAINER_START_TIME_LIMIT": "600"})
+        az("webapp", "config", "appsettings", "set", "-g", args.group, "-n", name, "--settings",
+           *[f"{k}={v}" for k, v in settings.items()])
+        az("webapp", "config", "set", "-g", args.group, "-n", name, "--startup-file", STARTUP)
+        print("deploying (Oryx installs requirements.txt; this takes a few minutes) ...")
+        az("webapp", "deploy", "-g", args.group, "-n", name, "--src-path", str(zip_path), "--type", "zip",
+           "--track-status", "false")
 
     url = f"https://{name}.azurewebsites.net"
     print(f"waiting for {url} ...")
@@ -151,7 +186,7 @@ def main():
         sys.exit(f"{url} did not come up; see: az webapp log tail -g {args.group} -n {name}")
     check = get(f"{url}/api/selfcheck", data=b"", timeout=180)
     print(f"self-check on the live link: ok={check.get('ok')} rows={check.get('rows')} sources={check.get('sources')}")
-    print(f"\nLive: {url}")
+    print(f"\nLive: {url}   upload page: {url}/rfq   dashboard: {url}/")
     return 0 if check.get("ok") else 1
 
 

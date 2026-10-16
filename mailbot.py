@@ -38,15 +38,8 @@ POLL_SECONDS = 30
 XLSX_TYPE = ("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-def load_env(path):
-    """Reads KEY=value lines from .env into the environment."""
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        key, sep, value = line.partition("=")
-        if sep and not line.lstrip().startswith("#"):
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
+sys.path.insert(0, str(ROOT))
+from rfq.infra.env import load as load_env  # noqa: E402  (one .env loader for the bot, the base and the app)
 
 load_env(ROOT / ".env")
 BOT_EMAIL = os.environ.get("BOT_EMAIL", "").strip()

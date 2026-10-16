@@ -304,33 +304,79 @@ confidence, source)}`.
 - **Hold gate:** see "Hold gate" below.
 
 ## Part B: RFQ Quality Agent (`rfq/quality/`, runs inside the pipeline unless `--no-quality`)
-1. **Unit normalisation (`units.py`, deterministic):** per data/README, Length in ft, Width in in, Thickness
-   in mil, Weight in lb. A bare number → add the unit (e.g. `1000` → `1000 ft`). The Sources row keeps the
-   origin and adds "unit normalised by quality agent". Every conversion gets a Notes row.
-2. **Rule flags (`rules.py`):** each flag has a rule name and a severity.
-   - **Missing:** key columns blank on a Found row.
-   - **Odd values:** non-numeric width/thickness, a value out of range, or the `[]` placeholder.
-   - **Description mismatches:** the Description disagrees with Width/Length/Color (e.g. "6 in" vs Width
-     `3 in`).
-   - **Not found items** are listed (information, not a review blocker).
-   - **Severity calibration:** `high` only for values that are probably wrong (mismatch, missing key value
-     on a Found row). Email 1 offline must come out `Ready`.
-3. **LLM review (`llm.py`, Azure OpenAI, `openai.AzureOpenAI`):** one call per found row with the row JSON +
-   its sources.
-   - **Output:** JSON flags only `{column, issue, severity, quoted_value}`, validated against a schema.
-     Flags that don't quote the cell value they question are dropped.
-   - **Advisory only:** LLM flags are "AI suggestions". They never write or change a value and never set the
-     status. Blank means unknown.
-   - **Without credentials:** if the Azure env vars are missing or the call fails, skip it and say so in the
-     Summary. The base still works.
-4. **Summary sheet (`summary.py`):**
-   - **Fill rate:** overall, per product, and per column.
-   - **Counts:** found / not found.
-   - **Flags table:** product, column, value, issue, rule, severity.
-   - **AI suggestions table:** the same columns, labelled advisory.
-   - **Status:** `Needs human review` if any unresolved high-severity **rule** flag, else `Ready`. After
-     approval: "Reviewed by <name>, <date>".
-5. **Human in the loop:** see "Hold gate" and "Reviewer experience".
+Revised 2026-10-16 from the agent slides in `image_conxt/agent/`. The deck's bar: "Catch the errors before a
+factory does. A person still reviews every RFQ; the agent makes that review fast and focused." It runs
+**after the Excel is filled, before the reply**: base → rules → LLM check → Summary sheet.
+
+**Which checks are code and which need the model** (the deck scores knowing the difference; the Summary and the
+web app label every flag "by code" or "by model"):
+
+| Check | By | Why |
+|---|---|---|
+| Units to one standard (Length ft, Width in, Thickness mil, Weight lb) | code | a lookup table is enough |
+| Blank cells (missing) | code | an empty cell is a fact |
+| `[]` placeholders, non-numeric or out-of-range measurements | code | patterns and ranges |
+| Wrong unit for a column ("300 in" Length when the description says 300 ft) | code | numbers compare exactly |
+| Description vs Width / Length / Colour | code | the description carries those numbers |
+| Application vs Lettering / colour (APWA: water blue, sewer green, gas yellow, electric red, telecom orange, reclaimed purple) | code | keyword + colour table |
+| Anything else that looks odd or contradicts the rest of the row | model | needs reading, not matching |
+
+1. **Units (`units.py`).** A bare number gets the unit (`"1000"` → `"1000 ft"`). An explicit other unit is
+   converted (`"333.33 yds."` → `"1000 ft"`, rounded when within 0.1% of a whole number).
+   - **Never a quiet fix:** a conversion is skipped, and flagged instead, when the result would contradict the
+     description or fall outside the plausible range. `"300 in"` on a "6 in. x 300 ft." tape stays `"300 in"` and
+     gets a high `wrong_unit` flag with the reason.
+   - Every change keeps its Sources row (origin + "unit normalised by the quality agent") and gets a Note.
+2. **Blanks (`rules.py`, `missing`).** Every empty spec cell on a Found row is a `missing` flag (severity
+   `low`), counted per column and per product for the fill rate. Blank Description, Length or Width on a
+   Found row is `high` (`missing_key_value`).
+3. **Suspicious values (`rules.py`).** Placeholders, non-numeric values, out-of-range values, wrong units,
+   description mismatches, and Application vs Lettering/colour (`application_mismatch`).
+   - **Example:** email 1's 5106891 says Application "Water" while its Lettering says Sewer and the tape is green.
+   - **Severity:** `high` only for values that are probably wrong (wrong unit, description mismatch on a
+     measurement, missing key value): those hold the RFQ. A conflict between descriptive columns is `medium`,
+     so email 1 stays `Ready`, and it is flagged and visible.
+4. **LLM check (`llm.py`).** It asks only what code can't see. It runs once per found row, given the row's
+   values (with the Description) and their sources, never the email.
+   - **Output:** JSON `{column, issue, severity, quoted_value}`; a flag whose quoted value isn't exactly the
+     cell's value is dropped.
+   - **Provider:** OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`; "the same key as Days 2 and 3") or Azure OpenAI
+     (`AZURE_OPENAI_*`). There's a 30 s timeout, 2 retries and a 90 s total cap.
+   - **Advisory:** model flags never change a value or the status.
+   - **On failure:** units and blanks still run, and the Summary says "LLM check skipped: <reason>".
+5. **Flag, never overwrite (`output/style.py`).** Flagged cells are coloured and get a comment with the reason
+   and who flagged it. The value is left for a person.
+   - **Colours:** grey for missing (code), amber for suspicious (code), orange for suspicious (model).
+   - **When:** the marks are in every RFQ.xlsx, not only held ones. A resolved flag loses its mark when the
+     approved file is rebuilt.
+6. **Summary sheet (`summary.py`).**
+   - **Overview:** products requested, found, found on the web (live), not found; spec cells filled X of Y;
+     overall fill rate; flags by type (missing, unit, suspicious, not found); units converted; the LLM check line
+     ("ran (gpt-…, N flags)" or "skipped: reason").
+   - **Fill rate per column:** filled, found products, fill rate (found), fill rate (all requested).
+   - **Fill rate per product:** filled of total spec cells, per found product.
+   - **Every flag:** item, column, value, issue, rule, severity, by code/model, state.
+   - **Also:** request lines with the estimated total, alerts, suggested alternatives, and the chart.
+7. **Reply.** The buyer-worded quality line stays, and it now counts blanks too: "every value checked; N
+   measurements standardised; N values worth a second look; N cells unknown (left blank). Details on the
+   Summary sheet."
+8. **Status.** `Needs human review` while any open high-severity **rule** flag remains; otherwise `Ready`.
+   Model flags and low (missing) flags never hold an RFQ. The review page lists high and medium flags; missing
+   cells are summarised, not listed one by one.
+
+**Test with (the deck's list, also in `tests/`):**
+- **Email 2 `--offline`:** bare `1000` becomes `1000 ft`, with many missing flags (weights, standards).
+- **Email 2 live:** 1432040's Length "300 in" against "6 in. x 300 ft." is flagged `wrong_unit` and left
+  unchanged, and the RFQ is held.
+- **Email 3 with "333.33 yds.":** a unit test.
+- **Email 1:** 5106891 gets an Application/Lettering flag and email 1 stays Ready, matching the reference.
+- **By email:** the reply carries the quality line and the Summary sheet.
+
+**Done when:**
+- every length is in ft and every width in in, or flagged when that can't be done safely;
+- each flag points to the exact cell with a reason;
+- the Summary shows the correct fill rate per column and per product;
+- email 2 uploaded to the Azure link comes back with the flags and the Summary.
 
 ## Hold gate (human in the loop)
 - **Ready:** the reply is sent automatically. Part A stays "no manual steps".
@@ -636,14 +682,71 @@ warnings. No secrets in logs: `.env` values and email bodies are never logged, o
 types.
 
 ## Azure deployment
-- **App:** `app/main.py` serving the built `web/dist` (the same app runs locally and on Azure).
-  - **Modes:** on Azure, runs use `--no-browser` (catalog + spec PDFs, bundled copies as fallback). The
-    Browser panel shows cached screenshots from `--replay` when available, otherwise "server mode: catalog +
-    spec sheets".
-- **Hosting:** Azure App Service (Linux, Python), deployed with `az webapp up` after `npm run build`.
-- **Secrets:** Azure OpenAI and mail settings in App Settings (never in git).
-- **Data:** the catalog, template and `data/spec_cache/` ship with the app.
-- **Optional:** run the inbox loop on Azure as a background task with `--no-browser`.
+Revised from the deploy slides: "Wrap, don't rewrite". There's no browser in the cloud and only /tmp is
+writable.
+
+**Target: Azure Functions** (Python 3.12, Linux, Consumption plan), as on Day 3. App Service stays as an
+alternative.
+- **`function_app.py`:** wraps the existing FastAPI app (`azure.functions.AsgiFunctionApp`); nothing is
+  rewritten.
+- **`host.json`:** `routePrefix: ""`, so the API, the dashboard and `/rfq` keep their paths. The bare address
+  serves the dashboard.
+- **`/rfq` page:** the deck's upload page. Upload a request email (.eml), the RFQ is built synchronously, and a
+  result page shows the counts, the quality line and a **Download RFQ.xlsx** button. Browsers block a file sent
+  straight back from a form, hence the result page. It is server-rendered, so it works even if the SPA's live
+  updates don't.
+- **App settings:**
+  - `RFQ_MODE=no-browser` (backup catalog + bundled spec sheets);
+  - `RFQ_OUT_DIR=/tmp/autorfq`, because only /tmp is writable;
+  - `RFQ_AUTO_BROWSER=0`;
+  - the keys (OpenAI, mail) set with `az functionapp config appsettings set`, never in the zip.
+- **The zip:** `function_app.py`, `host.json`, `requirements.txt` without playwright (written by the deploy
+  script), `app/`, `rfq/`, `data/`, `templates/`, `reference/`, `emails/`, `web/dist`. `.env` stays out.
+- **Script:** `scripts/deploy_azure.py --target functions` (default) or `--target webapp`.
+  - **Functions:** resource group, storage account, Function App, settings, zip deploy with a remote build.
+  - **After deploying:** it waits for `/api/health`, then runs the email-1 self-check on the live link.
+- **What runs where (for the presentation):** the email bot runs on the laptop (needs Gmail and, for live
+  pages, Chrome); the upload page and dashboard run on Azure.
+- **Done when:** email 1 uploaded to the live link gives the same RFQ as the laptop (from the catalog), and
+  the arm's work shows in the Excel.
+- **Known snags (from the deck):**
+  - **AADSTS50076/50079:** sign in at portal.azure.com, set up the Authenticator app, then `az logout` and
+    `az login`.
+  - **Name taken:** add two letters.
+  - **A missing module:** add it to `requirements.txt`.
+  - **Cold start:** open the page once before the demo.
+- **Hand-in (slide "Push to the common repo"):** fork `github.com/Tanmaya-kh/ferguson-agentic-fest`, copy the
+  code into the team folder (without `.env`, `venv`, `out`), fill in the team README, and open one PR. **Not
+  done without the user's go-ahead**: the user chose `Prajwaljb/AutoRFQ` as the working repo.
+
+## Configuration (`.env`)
+One file in the repo root, git-ignored; `.env.example` is the committed template.
+- **Who reads it:** `rfq/infra/env.py` loads it once, for `build.py`, `mailbot.py` and the web app alike. Values
+  already set in the environment win.
+- **On Azure:** the same names are App settings; `scripts/deploy_azure.py --with-secrets` copies them over.
+- **Keys:**
+  - `BOT_EMAIL`, `BOT_PASSWORD` (Gmail App Password: Google Account → Security → 2-Step Verification → App
+    passwords);
+  - `OPENAI_API_KEY`, `OPENAI_MODEL`, or `AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT`;
+  - optional: `REVIEW_NOTIFY_EMAIL`, `DASHBOARD_URL`, `SERPAPI_API_KEY`.
+- **Diagnostics page:** shows which keys are set (never their values).
+
+## Frontend: hackathon polish (revised 2026-10-16, user request: "more flashy")
+The earlier "no gimmicks" rule is relaxed for the demo. Usefulness stays first: every effect shows real data,
+and `prefers-reduced-motion` turns motion off.
+- **Background:** an aurora gradient in brand navy and cyan behind glass cards (blur, gradient borders, glow
+  on hover).
+- **Runs page hero:** "Every RFQ answered in under a minute", with animated counters (RFQs, items found,
+  average fill rate, hours saved), an animated pipeline strip (Email → Extract → Look up → Fill → Quality →
+  Reply) and a "Try a sample" button.
+- **Run page:**
+  - **Gauge:** a fill-rate ring.
+  - **Agent findings panel:** the same colour legend as the Excel (grey missing, amber code, orange model),
+    with "by code" / "by model" chips.
+  - **Cards:** item cards stagger in.
+  - **While processing:** a live pipeline with a pulsing current step and a ticker of events.
+- **Approve & send:** a confetti burst and a toast.
+- **Status badges:** glow, while keeping an icon and text.
 
 ## Build order (correctness first, then UX; commit after each)
 0. **Housekeeping (before any code):**

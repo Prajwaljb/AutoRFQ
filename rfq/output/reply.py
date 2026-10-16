@@ -125,13 +125,16 @@ def _quality(result):
     text = "Quality check: every value checked."
     if units:
         text += f" {units} measurement{'s' if units != 1 else ''} standardised (ft, in, mil, lb)."
-    open_flags = [f for f in result.flags if not f.resolved and f.severity != "info"]
+    open_flags = [f for f in result.flags if not f.resolved and f.severity in ("high", "medium")]
+    blanks = sum(1 for f in result.flags if f.rule == "missing" and not f.resolved)
     if open_flags:
         n = len(open_flags)
-        text += (f" {n} value{'s are' if n != 1 else ' is'} worth a second look; "
-                 f"{'they are' if n != 1 else 'it is'} listed on the Summary sheet.")
+        text += f" {n} value{'s are' if n != 1 else ' is'} worth a second look."
     else:
-        text += " No issues found."
+        text += " No values look wrong."
+    if blanks:
+        text += f" {blanks} cell{'s' if blanks != 1 else ''} left blank where no source gave a value."
+    text += " Details are on the Summary sheet."
     return text
 
 

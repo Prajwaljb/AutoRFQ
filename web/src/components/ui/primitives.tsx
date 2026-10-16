@@ -4,7 +4,7 @@ import { cn } from "./cn";
 import type { Tone } from "../../lib/status";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn("rounded-[var(--radius-card)] border border-border bg-surface", className)}>{children}</div>;
+  return <div className={cn("glass rounded-[var(--radius-card)] border border-border", className)}>{children}</div>;
 }
 
 const TONES: Record<Tone, string> = {

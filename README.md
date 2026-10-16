@@ -69,11 +69,22 @@ This writes `out/<email name>/RFQ.xlsx`, `reply.eml`, `run.json` and `run.log`.
 
 **Web app:** `.venv/bin/python -m uvicorn app.main:app --port 8000`, then open http://127.0.0.1:8000.
 
-**Email bot:** put `BOT_EMAIL` and `BOT_PASSWORD` (a Gmail App Password) in `.env`, then run
-`.venv/bin/python mailbot.py`. It answers unread emails with "RFQ" in the subject.
+**Settings (`.env`):** copy `.env.example` to `.env` in the repo root and fill in what you use. `.env` is
+git-ignored. One loader (`rfq/infra/env.py`) feeds it to `build.py`, `mailbot.py` and the web app, and the
+Diagnostics page shows which keys are set (never their values).
 
-**Optional AI review:** set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT` in
-`.env`.
+| Key | For |
+|---|---|
+| `BOT_EMAIL`, `BOT_PASSWORD` | the team Gmail and its 16-letter **App Password** (Google Account → Security → 2-Step Verification → App passwords). Used by `mailbot.py` and by Approve & send |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | the quality agent's LLM check (or `AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT`) |
+| `REVIEW_NOTIFY_EMAIL`, `DASHBOARD_URL` | optional "needs review" notice and its link |
+| `SERPAPI_API_KEY` | optional web search for competitor codes with no description |
+
+**Email bot:** with the mail keys set, run `.venv/bin/python mailbot.py`. It answers unread emails from today
+with "RFQ" in the subject, sent from another address, in the same thread. RFQs that need review wait in the
+dashboard until someone clicks Approve & send.
+
+**Upload page:** http://127.0.0.1:8000/rfq (the same page runs on Azure).
 
 **Checks:**
 
@@ -90,8 +101,19 @@ az login
 .venv/bin/python scripts/deploy_azure.py --with-secrets
 ```
 
-The script creates an App Service (Linux, Python 3.12, free F1 tier), deploys in `no-browser` mode (there's no
-browser in the cloud), then runs the email-1 self-check against the live URL.
+The script creates an **Azure Function App** (Python 3.12, Linux, consumption plan), as on Day 3:
+- **`function_app.py`** wraps the FastAPI app, and **`host.json`** sets `routePrefix: ""`, so `/rfq`, `/`
+  and `/api` keep their paths.
+- **Settings:** `RFQ_MODE=no-browser` (there's no browser in the cloud) and `RFQ_OUT_DIR=/tmp/autorfq` (only
+  /tmp is writable). `--with-secrets` copies the keys from `.env` into the app settings.
+- **Requirements:** the zip leaves playwright out.
+- **Check:** after deploying, it runs the email-1 self-check against the live URL.
+
+`--target webapp` uses App Service instead. If you see AADSTS50076/50079, sign in at portal.azure.com, set up
+the Authenticator app, then run `az logout` and `az login`.
+
+**What runs where:** the email bot runs on a laptop, since it needs Gmail and, for live pages, Chrome. The
+upload page and dashboard run on Azure.
 
 Live link: _added after the first deploy_.
 
@@ -102,8 +124,9 @@ Live link: _added after the first deploy_.
 - **Catalog prices date from 24 Sep 2026.** The reply labels them as list prices from that date.
 - **Spec sheet reading is pattern based** (Thickness, ASTM, OSHA, Material). It only fills blank cells, and
   every disagreement goes to the Notes sheet.
-- **The AI review is advisory.** It sees product data only, never the email, and it never changes a value
-  or the status.
+- **Code vs model.** Units, blanks, placeholders, ranges, wrong units and description/application
+  contradictions are plain code. The LLM only looks for what code can't see. Its flags are advisory: it sees
+  product data only, never the email, and never changes a value or the status.
 - **No user accounts.** The reviewer name is stored in the browser.
 - **The brand colours are provisional.** They come from Ferguson Brand Connect's public theme; the
   guideline pages need a login.

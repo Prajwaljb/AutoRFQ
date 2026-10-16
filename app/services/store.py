@@ -68,6 +68,9 @@ def summary(folder):
         "not_found": counts.get("not_found", 0),
         "flags": counts.get("flags", 0),
         "high_flags": counts.get("high_flags", 0),
+        "missing": counts.get("missing", 0),
+        "fill_rate": counts.get("fill_rate", 0),
+        "units_converted": (run or {}).get("units_converted", 0),
         "updated": mtime,
         "error": (job or {}).get("error", ""),
     }

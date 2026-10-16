@@ -42,7 +42,7 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
             <Row label="Default mode" ok text={health.forced_mode ? `${health.forced_mode} (set by RFQ_MODE)` : health.mode} />
             <Row label="Chrome" ok={health.chrome}
               text={health.chrome ? "The scraping window is open." : health.chrome_auto ? "Closed. Live runs open it and close it when done." : "Not available on this server: catalog + spec sheets."} />
-            <Row label="AI review" ok={health.ai} text={health.ai ? "Azure OpenAI is configured (advisory suggestions)." : "Off: AZURE_OPENAI_* not set. Rule flags still run."} />
+            <Row label="LLM check" ok={health.ai} text={health.ai ? "OpenAI / Azure OpenAI key set: the model looks for odd values (advisory)." : "Off: set OPENAI_API_KEY (or AZURE_OPENAI_*) in .env. Units, blanks and rule flags still run."} />
             <Row label="Inbox" ok={health.inbox} text={health.inbox ? "mailbot.py is answering RFQ emails." : "mailbot.py is not running."} />
             <Row label="Mail" ok={health.mail} text={health.mail ? "Approved replies can be sent." : "BOT_EMAIL / BOT_PASSWORD not set: approve and download instead."} />
           </>
@@ -50,6 +50,32 @@ export function DiagnosticsPage({ health }: { health: Health | null }) {
           <p className="p-3 text-sm text-muted">Loading…</p>
         )}
       </Card>
+
+      {health?.settings && (
+        <Card className="p-4">
+          <h2 className="font-semibold">Settings (.env)</h2>
+          <p className="mb-3 text-sm text-muted">
+            Which keys have a value. Values are never shown. Edit <code className="font-mono">.env</code> in the repo root (template:{" "}
+            <code className="font-mono">.env.example</code>), then restart the app.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {Object.entries(health.settings).map(([group, keys]) => (
+              <div key={group} className="rounded-md border border-border p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{group}</p>
+                <ul className="space-y-1 text-sm">
+                  {Object.entries(keys).map(([name, set]) => (
+                    <li key={name} className="flex items-center gap-2">
+                      {set ? <CheckCircle2 size={14} className="text-success" aria-hidden /> : <XCircle size={14} className="text-muted" aria-hidden />}
+                      <code className="font-mono text-xs">{name}</code>
+                      <span className="text-xs text-muted">{set ? "set" : "not set"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-4">

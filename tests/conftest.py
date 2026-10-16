@@ -11,6 +11,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAILS = ROOT / "emails"
+# Tests never use real credentials from .env: blank values win over .env (the loader never overrides).
+for _name in ("BOT_EMAIL", "BOT_PASSWORD", "REVIEW_NOTIFY_EMAIL", "OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT",
+              "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT", "SERPAPI_API_KEY"):
+    os.environ[_name] = ""
 sys.path.insert(0, str(ROOT))
 os.environ["RFQ_SPEC_DOWNLOAD"] = "0"  # tests never download: spec sheets come from data/spec_cache
 os.environ["RFQ_AUTO_BROWSER"] = "0"   # tests never open a browser window
