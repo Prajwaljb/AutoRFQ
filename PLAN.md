@@ -30,9 +30,23 @@ animations, no emoji badges, nothing the customer or reviewer has to decode.
     - the email reader is `rfq/extract/mail.py`, so the name doesn't shadow the stdlib `email`;
     - the template's "How to fill" sheet is dropped, because the reference has only RFQ / Sources /
       Notes.
-- **Not built yet:**
-  - live and spec-sheet sources: `--no-browser` and live mode use the catalog for now, with one warning;
-  - styling, the Quality Agent, `app/` and `web/`.
+- **Part A finished (2026-10-16):**
+  - **Live lookup (`rfq/sources/ferguson_live.py`):** checked against the real site through a visible
+    Chromium (ferguson.com blocks headless browsers).
+    - All 4 emails were built live.
+    - Email 1 live equals the reference: 0 differing cells.
+    - `225123` is Found live.
+  - **Spec sheets:** `spec_sheet.py`, with 39 links stored as 8 unique PDFs in `data/spec_cache/` (16 MB),
+    downloaded by `scripts/fetch_specs.py`.
+  - **Merge rules (`merge.py`):** a bare number carries its column's standard unit; ", " lists are stored
+    as "|"; spec-sheet Material wording never counts as a conflict.
+  - **Other pieces:** `rfq/chrome.py` launcher, `--replay` from the page cache, and Excel styling
+    (`style.py`).
+  - **Tests:** 66 offline tests (Python 3.14 + 3.11). Tests set `RFQ_SPEC_DOWNLOAD=0`, so they read the
+    bundled PDFs and never download.
+- **Open question:** `9677533` is listed on ferguson.com again. In live mode it is Found, but the `rfq-verify`
+  checker expects Not found for it in `--live` too (the spec only requires that offline).
+- **Not built yet:** the Quality Agent (Part B), `app/` and `web/`, and the Azure deployment.
 - **Cleanup done (2026-10-16):** the spec-kit artifacts `specs/001-rfq-flow/` and `.specify/feature.json`
   are deleted ("No spec-kit" above). The root `spec.md` is the spec.
 - **spec.md reviewed and updated (2026-10-15):** IDs are 5-7 digits; product_id, Description and Lookup

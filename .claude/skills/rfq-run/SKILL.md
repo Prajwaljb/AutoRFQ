@@ -24,12 +24,10 @@ resolve to IPv6 while Chrome listens on IPv4):
 ```
 curl -s http://127.0.0.1:9333/json/version
 ```
-If nothing answers, start it in the background with `PY rfq/chrome.py` (finds Chrome, Edge or Chromium on
-any OS). If `rfq/chrome.py` doesn't exist yet, use the Linux form of the deck's Chrome command:
-```
-chromium --remote-debugging-port=9333 --user-data-dir=/tmp/chrome-rfq https://www.ferguson.com/
-```
-Then wait until the curl check answers. If ferguson.com shows a sign-in or cookie prompt, ask the user to
+If nothing answers, run `PY rfq/chrome.py`. It finds Chrome, Edge or Chromium on any OS, starts a visible
+window with its own profile, and returns once the window answers. It must be a visible window: ferguson.com
+blocks headless browsers (`ERR_HTTP2_PROTOCOL_ERROR`).
+If ferguson.com shows a sign-in or cookie prompt, ask the user to
 click "Stay signed out" or accept in that window: the code reads pages like a person, it doesn't solve
 prompts. Leave the window open when you're done.
 
@@ -39,6 +37,8 @@ prompts. Leave the window open when you're done.
 PY rfq/build.py <email.eml> --out out [mode flags]
 ```
 - Show the one-line result it prints (items, found by source, not found, flags).
+- `--replay` rebuilds from the pages and PDFs cached in `out/.cache/` without a browser or network: use it
+  for a demo when Wi-Fi or ferguson.com is unreliable.
 - Output is in `out/<email name>/`: `RFQ.xlsx`, `reply.eml`, `run.json` and `run.log`.
 - Summarise the RFQ for the user by reading it with openpyxl: each row's product_id and Lookup Status, the
   Notes sheet, and the Summary sheet if present. Don't paste whole sheets.
