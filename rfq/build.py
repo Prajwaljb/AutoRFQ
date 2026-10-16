@@ -1,7 +1,10 @@
 """Builds the RFQ for one request email.
 
     python rfq/build.py <email.eml> --out out [--offline | --no-browser] [--no-quality] [--cdp URL]
-                        [--replay]
+                        [--replay] [--keep-browser]
+
+Live mode (the default) opens the scraping Chrome window if it isn't running, and closes it when the run
+is done unless --keep-browser is given.
 
 Writes out/<email name>/RFQ.xlsx, reply.eml, run.json and run.log, and prints one summary line.
 Exit code: 0 when RFQ.xlsx and reply.eml were written (even with warnings), 2 for a usage error,
@@ -35,6 +38,8 @@ def parse_args(argv):
     ap.add_argument("--no-quality", action="store_true", help="skip the quality agent")
     ap.add_argument("--cdp", default=config.DEFAULT_CDP, help="Chrome DevTools address")
     ap.add_argument("--replay", action="store_true", help="use cached pages and PDFs from out/.cache")
+    ap.add_argument("--keep-browser", action="store_true",
+                    help="leave the scraping Chrome window open after the run (default: close it)")
     return ap.parse_args(argv)
 
 
@@ -116,7 +121,7 @@ def main(argv=None):
     out_root = Path(args.out)
     try:
         result, run_dir = pipeline.run(eml, out_root, mode=choose_mode(args), quality=not args.no_quality,
-                                       cdp=args.cdp, replay=args.replay)
+                                       cdp=args.cdp, replay=args.replay, keep_browser=args.keep_browser)
     except KitBroken as e:
         print(f"error: the kit is broken: {e}", file=sys.stderr)
         return 1

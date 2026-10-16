@@ -8,12 +8,15 @@ from pathlib import Path
 
 from rfq import config
 from rfq.extract import extract_items, read_email
+from rfq.infra import chrome as chrome_launcher
 from rfq.infra import log as runlog
 from rfq.infra.events import Events
 from rfq.infra.io import safe_folder_name, write_bytes_atomic, write_text_atomic
 from rfq.models import CODE, RunResult, RunStatus
 from rfq.output import reply as reply_out
 from rfq.output import style, workbook
+from rfq import quality as quality_agent
+from rfq.quality import summary
 from rfq.sources import merge
 from rfq.sources.base import SourceUnavailable
 from rfq.sources.catalog import CatalogSource
@@ -88,9 +91,15 @@ def _live_lookups(result, live, catalog, logger, events):
     return found
 
 
-def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay):
+def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay, keep_browser=False):
     live_results = {}
-    if mode == config.LIVE:
+    wants_live = mode == config.LIVE and any(i.kind != CODE for i in result.items)
+    if mode == config.LIVE and not wants_live:
+        pass  # nothing to look up: don't open a browser
+    elif mode == config.LIVE:
+        if not replay and not chrome_available(cdp) and config.AUTO_BROWSER:
+            ok, message = chrome_launcher.launch(chrome_launcher.port_of(cdp))
+            logger.info("chrome: %s", message)
         if not replay and not chrome_available(cdp):
             _warn(result, logger, f"Chrome is not open for scraping at {cdp}; used the catalog and spec "
                                   "sheets (start it with: python rfq/chrome.py).")
@@ -104,6 +113,9 @@ def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay):
                 _warn(result, logger, f"Live lookup not available ({e}); used the catalog and spec sheets.")
             finally:
                 live.close()
+                if not replay and not keep_browser:  # the work is done: close the scraping window
+                    closed = chrome_launcher.close_browser(cdp)
+                    logger.info("chrome closed: %s", closed)
 
     spec = SpecSheetSource(cache_dir / "spec", replay=replay) if mode != config.OFFLINE else None
     for item in result.items:  # always assembled in email order
@@ -139,8 +151,34 @@ def _lookup(result, mode, catalog, logger, events, cdp, cache_dir, replay):
                 result.add_note(item, "spec", f"Spec sheet skipped: {spec.last_problem}.")
 
 
+def render_workbook(result):
+    """RFQ / Sources / Notes (+ Summary when the quality agent ran), styled."""
+    wb = workbook.build(result)
+    if result.quality_ran:
+        summary.add_sheet(wb, result)
+    return style.apply(wb, result)
+
+
+def write_outputs(result, run_dir, logger=None, events=None):
+    """RFQ.xlsx, reply.eml and run.json for a result (also used to rebuild after a review)."""
+    events = events or Events()
+    xlsx = workbook.save(render_workbook(result), Path(run_dir) / "RFQ.xlsx")
+    result.xlsx_name = xlsx.name
+    if xlsx.name != "RFQ.xlsx":
+        text = f"RFQ.xlsx was open in another program; saved as {xlsx.name}. Close RFQ.xlsx in Excel."
+        if text not in result.warnings:
+            result.warnings.append(text)
+        if logger:
+            logger.warning(text)
+    events.emit("excel_saved", file=xlsx.name)
+    write_bytes_atomic(Path(run_dir) / "reply.eml", reply_out.build(result, xlsx).as_bytes())
+    events.emit("reply_saved", file="reply.eml")
+    write_text_atomic(Path(run_dir) / "run.json", json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    return xlsx
+
+
 def run(eml_path, out_root, mode=config.OFFLINE, quality=True, on_event=None, cdp=config.DEFAULT_CDP,
-        replay=False):
+        replay=False, keep_browser=False):
     """Builds the RFQ for one email. Returns (RunResult, run folder).
 
     Raises KitBroken if the template or catalog is unusable, OSError if the email can't be read.
@@ -158,7 +196,7 @@ def run(eml_path, out_root, mode=config.OFFLINE, quality=True, on_event=None, cd
         data = read_email(eml_path)
         result = RunResult(run_id=run_id, email_file=eml_path.name, mode=mode, sender=data.sender,
                            sender_name=data.sender_name, subject=data.subject, message_id=data.message_id,
-                           received=data.date)
+                           received=data.date, email_path=str(eml_path.resolve()))
         logger.info("run %s mode=%s", run_id, mode)
         events.emit("email_read", subject=result.subject, sender=result.sender, texts=len(data.texts),
                     attachments=len(data.attachments))
@@ -168,23 +206,14 @@ def run(eml_path, out_root, mode=config.OFFLINE, quality=True, on_event=None, cd
             events.emit("item_found", product_id=item.product_id, kind=item.kind, index=item.index)
         logger.info("items: %d", len(result.items))
 
-        _lookup(result, mode, catalog, logger, events, cdp, Path(out_root) / ".cache", replay)
+        _lookup(result, mode, catalog, logger, events, cdp, Path(out_root) / ".cache", replay, keep_browser)
 
-        result.status = RunStatus.READY
-        wb = style.apply(workbook.build(result), len(result.items))
-        xlsx = workbook.save(wb, run_dir / "RFQ.xlsx")
-        result.xlsx_name = xlsx.name
-        if xlsx.name != "RFQ.xlsx":
-            text = f"RFQ.xlsx was open in another program; saved as {xlsx.name}. Close RFQ.xlsx in Excel."
-            result.warnings.append(text)
-            logger.warning(text)
-        events.emit("excel_saved", file=xlsx.name)
-
-        msg = reply_out.build(result, xlsx, data.raw)
-        write_bytes_atomic(run_dir / "reply.eml", msg.as_bytes())
-        events.emit("reply_saved", file="reply.eml")
-
-        write_text_atomic(run_dir / "run.json", json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+        if quality:
+            quality_agent.run(result, logger, events)
+        else:
+            result.status = RunStatus.READY
+        logger.info("status %s, flags %d, AI: %s", result.status.value, len(result.flags), result.ai_status)
+        write_outputs(result, run_dir, logger, events)
         for w in result.warnings:
             logger.info("warning recorded: %s", w)
         events.emit("run_done", status=result.status.value, counts=result.counts())

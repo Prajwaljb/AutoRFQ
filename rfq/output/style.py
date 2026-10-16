@@ -9,6 +9,7 @@ from rfq import config
 NAVY, MIST, STEEL, WHITE = "00446A", "E6ECF0", "B2C7D2", "FFFFFF"
 FOUND_FILL, FOUND_TEXT = "DCFCE7", "166534"
 NOT_FOUND_FILL, NOT_FOUND_TEXT = "FFEDD5", "9A3412"
+REVIEW_FILL = "FEF08A"
 CONFIDENCE_FILL = {"high": "DCFCE7", "medium": "FEF9C3", "low": "FEE2E2"}
 FONT = "Inter"  # brand font; Excel substitutes a sans-serif where it is not installed
 
@@ -92,9 +93,23 @@ def style_notes(ws):
         ws.cell(row=r, column=2).alignment = Alignment(wrap_text=True, vertical="top")
 
 
-def apply(wb, n_items):
-    style_rfq(wb["RFQ"], n_items)
+def review_marks(ws, result):
+    """While an RFQ is held: flagged cells get a yellow fill and a comment. Rebuilt without them on approval."""
+    from openpyxl.comments import Comment
+    row_of = {item.product_id: r for r, item in enumerate(result.items, start=2)}
+    for flag in result.flags:
+        if flag.resolved or flag.severity not in ("high", "medium") or flag.column not in config.RFQ_COLUMNS:
+            continue
+        cell = ws.cell(row=row_of[flag.product_id], column=config.RFQ_COLUMNS.index(flag.column) + 1)
+        cell.fill = _fill(REVIEW_FILL)
+        cell.comment = Comment(f"{flag.severity.upper()}: {flag.issue} ({flag.rule})", "Quality agent")
+
+
+def apply(wb, result):
+    style_rfq(wb["RFQ"], len(result.items))
     style_sources(wb["Sources"])
     if "Notes" in wb.sheetnames:
         style_notes(wb["Notes"])
+    if result.status.value == "needs_review":
+        review_marks(wb["RFQ"], result)
     return wb

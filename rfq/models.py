@@ -88,6 +88,10 @@ class RunResult:
     status: RunStatus = RunStatus.PROCESSING
     quality_ran: bool = False
     units_converted: int = 0
+    ai_status: str = ""
+    email_path: str = ""
+    reviewed_by: str = ""
+    reviewed_at: str = ""
     xlsx_name: str = "RFQ.xlsx"
 
     def add_note(self, item, stage, text):
@@ -114,7 +118,8 @@ class RunResult:
             "found": len(found),
             "not_found": len(self.items) - len(found),
             "by_source": by_source,
-            "flags": len([f for f in self.flags if not f.resolved]),
+            "flags": len([f for f in self.flags if not f.resolved and f.severity != "info"]),
+            "high_flags": len([f for f in self.flags if not f.resolved and f.severity == "high"]),
             "warnings": len(self.warnings),
         }
 
@@ -133,6 +138,10 @@ class RunResult:
             "counts": self.counts(),
             "quality_ran": self.quality_ran,
             "units_converted": self.units_converted,
+            "ai_status": self.ai_status,
+            "email_path": self.email_path,
+            "reviewed_by": self.reviewed_by,
+            "reviewed_at": self.reviewed_at,
             "xlsx": self.xlsx_name,
             "items": [
                 {
@@ -150,3 +159,27 @@ class RunResult:
             "ai_suggestions": [asdict(f) for f in self.ai_suggestions],
             "warnings": list(self.warnings),
         }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Rebuilds a RunResult from run.json (used to regenerate outputs after a review)."""
+        result = cls(run_id=data["run_id"], email_file=data.get("email_file", ""), mode=data.get("mode", ""))
+        for key in ("sender", "sender_name", "subject", "message_id", "received", "quality_ran",
+                    "units_converted", "ai_status", "email_path", "reviewed_by", "reviewed_at"):
+            if key in data:
+                setattr(result, key, data[key])
+        result.xlsx_name = data.get("xlsx", "RFQ.xlsx")
+        result.status = RunStatus(data.get("status", "ready"))
+        result.warnings = list(data.get("warnings", []))
+        for raw in data.get("items", []):
+            item = Item(index=raw["index"], product_id=raw["product_id"], kind=raw.get("kind", FERGUSON),
+                        line=raw.get("line", ""), brand=raw.get("brand", ""), qty=raw.get("qty", ""),
+                        extra=dict(raw.get("extra", {})), lookup_status=raw.get("lookup_status", NOT_FOUND),
+                        found_via=raw.get("found_via", ""), reason=raw.get("reason", ""))
+            item.cells = {c: Cell(**cell) for c, cell in raw.get("cells", {}).items()}
+            result.items.append(item)
+        result.notes = [Note(**n) for n in data.get("notes", [])]
+        result.flags = [Flag(**f) for f in data.get("flags", [])]
+        result.ai_suggestions = [Flag(**f) for f in data.get("ai_suggestions", [])]
+        return result
+

@@ -45,6 +45,37 @@ def port_in_use(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+def close_browser(cdp):
+    """Closes the scraping browser at cdp (all its windows). True if one was closed.
+
+    Only the dedicated scraping profile listens on the debugging port, so the user's own browsing is
+    never touched.
+    """
+    if not chrome_available(cdp):
+        return False
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp(cdp, timeout=5000)
+            try:
+                browser.new_browser_cdp_session().send("Browser.close")
+            except Exception:
+                pass  # the connection drops as the browser exits
+    except Exception:
+        return False
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and chrome_available(cdp, timeout=0.3):
+        time.sleep(0.2)
+    return not chrome_available(cdp, timeout=0.3)
+
+
+def port_of(cdp):
+    try:
+        return int(cdp.rstrip("/").rsplit(":", 1)[1])
+    except (IndexError, ValueError):
+        return 9333
+
+
 def launch(port=9333, browser=None, wait=20):
     """Returns (ok, message)."""
     cdp = f"http://127.0.0.1:{port}"

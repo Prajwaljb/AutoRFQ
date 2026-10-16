@@ -110,8 +110,8 @@ def _quality(result):
     units = result.units_converted
     text = "Quality check: every value checked."
     if units:
-        text += f" {units} measurement{'s' if units != 1 else ''} converted to standard units (ft, in, mil, lb)."
-    open_flags = [f for f in result.flags if not f.resolved]
+        text += f" {units} measurement{'s' if units != 1 else ''} standardised (ft, in, mil, lb)."
+    open_flags = [f for f in result.flags if not f.resolved and f.severity != "info"]
     if open_flags:
         n = len(open_flags)
         text += (f" {n} value{'s are' if n != 1 else ' is'} worth a second look; "

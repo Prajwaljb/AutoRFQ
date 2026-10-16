@@ -23,6 +23,8 @@ REFERENCE = ROOT / "reference" / "email-1 reference output.xlsx"
 # Modes, from most to least sources used.
 LIVE, NO_BROWSER, OFFLINE = "live", "no-browser", "offline"
 MODES = (LIVE, NO_BROWSER, OFFLINE)
+# Live mode opens the scraping window itself when it isn't running (RFQ_AUTO_BROWSER=0 turns that off).
+AUTO_BROWSER = os.environ.get("RFQ_AUTO_BROWSER", "1").strip() != "0"
 DEFAULT_CDP = "http://127.0.0.1:9333"  # 127.0.0.1, not localhost: on Windows localhost can resolve to ::1
 
 # The RFQ sheet columns, in template order. Checked against the template at start-up.
