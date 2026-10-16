@@ -96,6 +96,13 @@ can't be read.
 - Runs the same on Windows and Linux. All files are read and written as UTF-8 and all paths are built in
   code. If RFQ.xlsx is open in Excel, the flow saves a copy instead of failing.
 - Secrets (Gmail App Password, Azure keys) live in `.env` only, and never appear in logs.
+- Everything people see (web app, styled Excel, reply email) follows Ferguson's design language:
+  - colours: navy `#00446a` as the primary colour, `#00a0dd` as the accent, and `#b2c7d2` / `#e6ecf0` as
+    neutrals;
+  - font: Inter, with Arial in email.
+
+  Styling never changes a value. Text meets WCAG AA contrast, so `#00a0dd` is never used for body text on
+  white. The values are provisional until they are checked against Ferguson Brand Connect.
 
 ## Run
 `python rfq/build.py <email.eml> --out out` writes `RFQ.xlsx`, `reply.eml`, `run.json` and `run.log` to

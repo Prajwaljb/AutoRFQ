@@ -19,9 +19,20 @@ clean customer reply, a styled Excel, and a human-in-the-loop gate. Usefulness b
 animations, no emoji badges, nothing the customer or reviewer has to decode.
 
 ### Progress so far (re-checked on disk 2026-10-16)
-- **Done:** `requirements.txt`, `.venv/` (openpyxl installed in it), `spec.md`. All are uncommitted.
-- **Not on disk:** there is no `rfq/`, `app/`, `web/` or `tests/` directory. The designs below still stand,
-  and the extraction regexes were already checked against the 4 emails.
+- **Build order steps 0-2 done (2026-10-16):**
+  - **Step 0:** `check.py --build` in the `rfq-verify` skill, and CI (`.github/workflows/ci.yml`).
+  - **Step 1, the offline base:** `rfq/` with `config`, `models`, `infra/`, `extract/`, `sources/catalog`,
+    `output/workbook` + `reply`, `pipeline` and `build.py`.
+  - **Step 2:** the `mailbot.py` patch (follow-up reply, always `\Seen`, hold gate, `run.json` status).
+  - **Checks:** 48 offline tests pass on Python 3.14 and 3.11. Email 1 equals the reference, including the
+    105 Sources rows in order.
+  - **Small changes from the design:**
+    - the email reader is `rfq/extract/mail.py`, so the name doesn't shadow the stdlib `email`;
+    - the template's "How to fill" sheet is dropped, because the reference has only RFQ / Sources /
+      Notes.
+- **Not built yet:**
+  - live and spec-sheet sources: `--no-browser` and live mode use the catalog for now, with one warning;
+  - styling, the Quality Agent, `app/` and `web/`.
 - **Cleanup done (2026-10-16):** the spec-kit artifacts `specs/001-rfq-flow/` and `.specify/feature.json`
   are deleted ("No spec-kit" above). The root `spec.md` is the spec.
 - **spec.md reviewed and updated (2026-10-15):** IDs are 5-7 digits; product_id, Description and Lookup
@@ -41,6 +52,9 @@ animations, no emoji badges, nothing the customer or reviewer has to decode.
   - **Hold gate:** "Needs review" RFQs are held until a person approves them. Ready RFQs are sent
     automatically.
   - **Frontend:** React + Vite + TypeScript + shadcn/ui; dark theme by default with a light toggle.
+  - **Brand (2026-10-16):** the UI, Excel and reply follow Ferguson's design language. The palette is
+    navy `#00446a` and accent `#00a0dd`, and the font is Inter. These values are provisional; see "Design
+    rules".
   - **Structure:** a layered layout (core library / API / web) that can take new sources and pages
     without reshuffling.
 - **Deck check (2026-10-16):** all 12 slides in `image_conxt/` were compared with this plan, and they
@@ -325,11 +339,17 @@ confidence, source)}`.
     - After a review: "Quality check: checked by our team."
   - **Closing:** "Every value's source is on the Sources sheet", then a signature.
   - **Never included:** internal words (flag, rule, severity), fill-rate %, review links, "AI", "DRAFT".
+  - **Look:** the brand palette with inline CSS only.
+    - A navy `#00446a` header bar with "Ferguson" in white text.
+    - The table header in `brand-mist` with navy text.
+    - Arial / Helvetica, because email clients don't load Inter.
 - **Excel (`rfq/output/style.py`, formatting only):**
-  - **RFQ sheet:** first, in the reference layout. Branded header, frozen header + ID column, autofilter,
-    readable widths, wrapped long text, row heights that make the `IMAGE()` thumbnails visible. The status
-    cell has a colour **and** text; Not found rows are tinted.
-  - **Sources sheet:** a confidence colour scale and clickable source URLs.
+  - **RFQ sheet:** first, in the reference layout.
+    - **Header:** navy `#00446a` with white bold text (see "Brand" under Design rules).
+    - **Layout:** frozen header + ID column, autofilter, readable widths, wrapped long text, and row heights
+      that make the `IMAGE()` thumbnails visible.
+    - **Status:** the status cell has a colour **and** text. Not found rows are tinted `brand-mist`.
+  - **Sources sheet:** a confidence colour scale (semantic colours) and clickable source URLs in navy.
   - **Summary sheet:** KPI cells (found, not found, fill rate, flags), a per-column fill-rate bar chart
     (openpyxl `BarChart`), the flags table and the AI suggestions table.
   - **Review marks:** yellow fill + comment on flagged cells exist only while an RFQ is held. The approved
@@ -392,11 +412,37 @@ browser / Offline), each with a one-line explanation.
 ("6/6 rows, 105/105 sources matched").
 
 **Design rules (no gimmicks):**
-- **Components and colour:** shadcn/ui on Tailwind design tokens. A Ferguson-style blue primary, a neutral
-  zinc base and semantic status colours (success, warning, danger, info). Every status has an icon (lucide)
-  **and** text, never colour or emoji alone.
-- **Type and layout:** Inter/system font, tabular numbers for prices and counts, IDs in monospace. A 4/8 px
-  spacing grid, one card radius and one elevation level.
+- **Brand (Ferguson design language):**
+  - **Source:** the Ferguson Brand Connect guideline needs a login. These values come from its public
+    portal theme and are **provisional** until someone checks them against the guideline.
+  - **Palette** (one set of tokens in `web/src/index.css`, reused by `rfq/output/style.py` and the reply
+    template):
+
+    | Token | Hex | Use |
+    |---|---|---|
+    | `brand-navy` | `#00446a` | primary: top bar, primary buttons, links, Excel headers, the reply header bar |
+    | `brand-navy-700` | `#003d5f` | hover |
+    | `brand-navy-800` | `#003655` | pressed; dark-theme surfaces |
+    | `brand-blue` | `#00a0dd` | accent: focus ring, active tab, selection, progress |
+    | `brand-steel` | `#b2c7d2` | borders, dividers, muted icons |
+    | `brand-mist` | `#e6ecf0` | page and section background (light theme), Not found row tint |
+
+  - **Colour use:**
+    - Navy on white is 10.3:1 and on mist 8.7:1 (both AA).
+    - `brand-blue` on white is only 3.0:1, so it is never used for body text on light backgrounds; it is
+      fine for focus rings, icons and large text.
+    - In the dark theme `brand-blue` becomes the primary text and button colour (6.2:1 on the dark base),
+      and navy is used for surfaces.
+  - **Status colours** (success, warning, danger, info) are semantic. They don't come from the brand
+    palette and must not be confused with it.
+- **Components and colour:** shadcn/ui on Tailwind design tokens mapped to the brand tokens above, with
+  neutral greys tinted toward `brand-steel` / `brand-mist` instead of zinc. Every status has an icon
+  (lucide) **and** text, never colour or emoji alone.
+- **Type and layout:**
+  - **Font:** Inter (the brand portal's font). Email clients fall back to Arial / Helvetica.
+  - **Text styles:** tabular numbers for prices and counts, IDs in monospace.
+  - **Layout:** a 4/8 px spacing grid, one card radius and one elevation level.
+  - **Logo:** use the Ferguson name in text only; no logo files unless taken from Brand Connect.
 - **Motion:** 150–200 ms fades only; `prefers-reduced-motion` is respected.
 - **Accessibility:** WCAG AA contrast in both themes, visible focus rings, everything reachable by
   keyboard, `aria-live` for run progress.
