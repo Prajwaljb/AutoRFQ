@@ -17,7 +17,7 @@ replies in the same email thread, usually in **about a minute**.
 | Other brands' codes | look up and match by hand | competitor specs found online, Ferguson equivalents suggested |
 | Where did this value come from? | unknown | a Sources sheet row for every value |
 
-Spec: [`spec.md`](spec.md) · Plan: [`PLAN.md`](PLAN.md) · Features and diagrams: [`document.md`](document.md) · Presentation: [`Ferguson Agentic Fest Presentation Template.html`](Ferguson%20Agentic%20Fest%20Presentation%20Template.html)
+How it works, with diagrams: [`document.md`](document.md) · Presentation: [`Ferguson Agentic Fest Presentation Template.html`](Ferguson%20Agentic%20Fest%20Presentation%20Template.html)
 
 ## What it does
 
@@ -127,7 +127,7 @@ dashboard until someone clicks Approve & send.
 
 ```bash
 .venv/bin/python -m pytest                                    # 117 offline tests
-.venv/bin/python .claude/skills/rfq-verify/check.py --build   # spec.md "Done when"
+.venv/bin/python .claude/skills/rfq-verify/check.py --build   # acceptance checks (email 1 = reference, nothing dropped)
 (cd web && npm test)
 ```
 

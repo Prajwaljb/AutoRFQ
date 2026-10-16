@@ -1,4 +1,4 @@
-"""A bad input makes the RFQ smaller, never the run fail (spec.md: Failure handling, exit codes)."""
+"""A bad input makes the RFQ smaller, never the run fail (see document.md, Failure handling and exit codes)."""
 import email
 import email.policy
 import json

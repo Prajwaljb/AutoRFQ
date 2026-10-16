@@ -19,7 +19,7 @@ COPY templates templates
 COPY reference reference
 COPY emails emails
 COPY web/dist web/dist
-COPY mailbot.py spec.md ./
+COPY mailbot.py ./
 
 ENV RFQ_MODE=live \
     RFQ_IN_CONTAINER=1 \

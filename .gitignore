@@ -9,3 +9,7 @@ web/dist/
 .pytest_cache/
 .azure-app.json
 .azure-container.json
+
+# design notes kept locally, not published
+PLAN.md
+spec.md

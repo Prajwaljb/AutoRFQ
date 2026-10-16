@@ -1,4 +1,4 @@
-"""How sources combine (spec.md): live wins over the catalog, and every difference goes to the Notes sheet;
+"""How sources combine: live wins over the catalog, and every difference goes to the Notes sheet;
 spec sheets only fill cells that are still blank, and a disagreement with a filled cell is noted."""
 import re
 

@@ -1,4 +1,4 @@
-"""spec.md "Done when": email 1 equals the reference; unknown items are Not found; nothing is dropped."""
+"""the acceptance checks: email 1 equals the reference; unknown items are Not found; nothing is dropped."""
 import email
 import email.policy
 import json

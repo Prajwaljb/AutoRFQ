@@ -1,4 +1,4 @@
-"""Checks built RFQs against spec.md "Done when".
+"""Checks built RFQs against the acceptance checks (email 1 equals the reference, unknown items are Not found, nothing dropped).
 
 Usage: python .claude/skills/rfq-verify/check.py [--build] [--out out/verify] [--live] [--no-quality]
 With --build it first builds the four sample emails with rfq/build.py (offline unless --live), using the

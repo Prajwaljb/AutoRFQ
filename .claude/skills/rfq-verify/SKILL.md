@@ -1,13 +1,13 @@
 ---
 name: rfq-verify
-description: Check the RFQ flow against spec.md "Done when". Builds the four sample emails offline (or live) and compares email 1 with the reference Excel cell for cell, checks the expected Not found items, Sources coverage and reply.eml. Use after any change to rfq/, before committing, or when asked "does it work / does it match the reference".
+description: Check the RFQ flow against the acceptance checks. Builds the four sample emails offline (or live) and compares email 1 with the reference Excel cell for cell, checks the expected Not found items, Sources coverage and reply.eml. Use after any change to rfq/, before committing, or when asked "does it work / does it match the reference".
 argument-hint: "[--live] [--no-quality]"
 user-invocable: true
 ---
 
 # Verify the RFQ flow
 
-The acceptance checks from `spec.md` ("Done when"), runnable in one go. `check.py` only reads the outputs,
+The acceptance checks, runnable in one go. `check.py` only reads the outputs,
 so it works with any implementation of `rfq/build.py`.
 
 ## Steps

@@ -34,7 +34,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INCLUDE = ["app", "rfq", "data", "templates", "reference", "emails", "mailbot.py", "spec.md"]
+INCLUDE = ["app", "rfq", "data", "templates", "reference", "emails", "mailbot.py"]
 FUNCTION_FILES = ["function_app.py", "host.json"]
 SKIP_PARTS = {"__pycache__", ".pytest_cache", "node_modules"}
 STARTUP = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
