@@ -5,11 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AutoRFQ · Ferguson RFQ Challenge</title>
 <!--
-  AutoRFQ presentation (from the Agentic Fest template).
-  Screenshots next to this file: rfq-output.png, review.png, arm-result.png.
-  Diagrams are Mermaid (loaded from cdn.jsdelivr.net): open with internet once before presenting.
+  AutoRFQ presentation, 6 slides (from the Agentic Fest template).
+  Screenshot next to this file: arm-result.png. The flow diagram is Mermaid (loads from cdn.jsdelivr.net).
   Still to fill: the grey italic text (class="ph"): group number and team names.
-  Right / Left arrow to move, F for full screen. Keep it to 10 minutes.
+  Right / Left arrow to move, F for full screen.
 -->
 <style>
   :root{
@@ -111,6 +110,16 @@
   .small{font-size:12.5px;color:var(--muted);line-height:1.45;}
   .shot.s300{height:300px;} .shot.s380{height:380px;} .shot.s420{height:420px;}
 
+  /* simple deck additions */
+  .big{font-size:20px;line-height:1.5;color:var(--text2);}
+  .ex{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:start;}
+  .ex .lbl{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding-top:2px;}
+  .ex .lbl.p{color:#B45309;} .ex .lbl.f{color:#047857;}
+  .ex .txt{font-size:14.5px;line-height:1.45;color:var(--ink);}
+  .mmd.simple{height:230px;} .mmd.simple svg{max-height:210px;}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .tiles .card{text-align:center;padding:18px 14px;} .tiles .stat{font-size:34px;}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 </head>
@@ -128,10 +137,10 @@
       </div>
       <div class="badge">Day 4 · Agentic Fest · The Ferguson RFQ Challenge</div>
       <h1>AutoRFQ<br><span class="accent">from sourcing email to RFQ</span></h1>
-      <p>Reads the RFQ email, looks every product up with a source for every value, and a quality agent catches the errors before a factory does. About a minute per RFQ.</p>
+      <p>A customer emails a list of products. About a minute later they get the filled RFQ back, and our agent has already checked it for mistakes.</p>
       <div class="chips">
         <span class="chip">👥 <b>Group <span class="ph">1</span></b></span>
-        <span class="chip">🤖 <b>RFQ Quality Agent</b> + Competitor Finder</span>
+        <span class="chip">🤖 <b>RFQ Quality Agent</b></span>
         <span class="chip">☁️ <b>Live on Azure</b></span>
       </div>
       <p style="margin:22px auto 0;font-size:15px"><span class="ph">Team member 1 · Team member 2 · Team member 3</span></p>
@@ -145,244 +154,89 @@
       <div class="c3">
         <div class="card top"><div class="stat">2 to 4 <span class="accent">days</span></div><div class="d">to build one RFQ by hand today</div></div>
         <div class="card top"><div class="stat">~40 <span class="accent">a month</span></div><div class="d">RFQs, across 6 countries</div></div>
-        <div class="card top"><div class="stat">23 <span class="accent">columns</span></div><div class="d">to fill for every single product</div></div>
+        <div class="card top"><div class="stat">23 <span class="accent">details</span></div><div class="d">to fill in for every single product</div></div>
       </div>
       <div class="c2" style="margin-top:16px">
-        <div class="card"><div class="t">📧 How it works today</div><div class="d">A sourcing manager gets an email with product IDs, looks up every product across several sources, and copies each detail into the RFQ Excel before sending it to factories for a price.</div></div>
-        <div class="card"><div class="t">⚠️ What we saw in the four sample emails</div><ul>
-          <li>IDs in the body, in an <b>Excel attachment</b>, with <b>#</b> in front, inside a <b>messy forward</b>, one listed twice</li>
-          <li>Mixed units: <b>"1000"</b> next to <b>"1000 ft"</b>, <b>"333.33 yds."</b>, a length of <b>"300 in"</b> on a 300 ft tape</li>
-          <li><b>Competitor codes</b> (Mutual, Empire) and a customer's own code mixed in</li>
-          <li>Blank weights and standards, and a tape whose Application says <b>Water</b> while it reads <b>Sewer</b></li>
+        <div class="card"><div class="t">📧 How it works today</div><div class="d">A sourcing manager gets an email with product numbers, looks up every product one by one, and copies each detail into an Excel sheet before sending it to factories for a price.</div></div>
+        <div class="card"><div class="t">⚠️ Where it goes wrong</div><ul>
+          <li>Emails are messy: numbers hidden in forwards, in attachments, or listed twice</li>
+          <li>The same size is written different ways: "1000", "1000 ft", "333 yards"</li>
+          <li>Some products are from other brands, not Ferguson</li>
+          <li>Copying by hand means typos and missed details</li>
         </ul></div>
       </div>
     </div>
   </div>
 
-  <!-- 3 · WHY IT MATTERS -->
+  <!-- 3 · HOW IT WORKS -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">02 · Why it matters</div><div class="h">What this means <span class="accent">for Ferguson</span></div></div>
-      <div class="c3">
-        <div class="card top"><div class="t">⚡ Speed</div><div class="d"><b>~70 seconds</b> for an 8-item RFQ read live from ferguson.com, <b>~10 seconds</b> from the catalog. Factories get the RFQ the same hour, not days later.</div></div>
-        <div class="card top"><div class="t">🎯 Accuracy</div><div class="d">Every value cites its <b>source</b> (live page, spec PDF, catalog). <b>Blank means unknown</b>: nothing is guessed. The agent flags wrong units and contradictions before they reach a factory.</div></div>
-        <div class="card top"><div class="t">📈 Scale</div><div class="d">Runs from the <b>inbox</b> or a <b>web link</b>. A shared <b>product database</b> means each product is fetched once and reused, and competitor codes are cross-referenced once.</div></div>
-      </div>
-      <div class="banner"><span class="ic">💡</span><div><b>Our one line pitch:</b> the sourcing manager stops copying and starts checking: the RFQ arrives filled and sourced, and only the values that look wrong need a person.</div></div>
-    </div>
-  </div>
-
-  <!-- 4 · SOLUTION AND ARCHITECTURE -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">03 · Our solution</div><div class="h">From email in to <span class="accent">RFQ out</span></div></div>
-      <div class="pipe">
-        <div class="pstep"><div class="pi">📧</div><div class="pt">Email in</div><div class="pd">Gmail inbox bot, or upload on the Azure link</div></div>
-        <div class="parrow">→</div>
-        <div class="pstep"><div class="pi">🔎</div><div class="pt">Find IDs</div><div class="pd">Body, HTML, .xlsx/.csv, forwards; phones and POs ignored</div></div>
-        <div class="parrow">→</div>
-        <div class="pstep"><div class="pi">📚</div><div class="pt">Look up</div><div class="pd">ferguson.com via Chrome, spec PDFs, catalog fallback</div></div>
-        <div class="parrow">→</div>
-        <div class="pstep arm"><div class="pi">🤖</div><div class="pt">Quality Agent</div><div class="pd">Units, blanks, wrong values; holds doubtful RFQs</div></div>
-        <div class="parrow">→</div>
-        <div class="pstep"><div class="pi">📊</div><div class="pt">RFQ out</div><div class="pd">Excel + Summary + reply in the same thread</div></div>
-      </div>
-      <div style="margin-top:14px"><div class="mmd h300"><pre class="mermaid">
+      <div class="shead"><div class="eyebrow">02 · What we built</div><div class="h">How <span class="accent">AutoRFQ</span> works</div></div>
+      <div class="mmd simple"><pre class="mermaid">
 flowchart LR
-  G[Gmail inbox] --> B[mailbot.py]
-  U[Upload page /rfq<br/>and dashboard] --> A[FastAPI app]
-  B -->|subprocess| P
-  A -->|subprocess| P
-  subgraph P[rfq/build.py pipeline]
-    direction LR
-    E[Extract IDs<br/>body, xlsx, forwards] --> L[Look up<br/>live page, spec PDF,<br/>catalog]
-    L --> F[Fill RFQ<br/>+ Sources + Notes]
-    F --> Q[Quality Agent<br/>rules + LLM check]
-  end
-  L <--> D[(Product DB<br/>+ cross-refs)]
-  L <-.-> C[Chrome over CDP<br/>ferguson.com]
-  Q -.-> O[OpenAI]
-  Q --> X[RFQ.xlsx + Summary<br/>reply.eml]
-  X -->|Ready| R[Reply in thread]
-  X -->|Needs review| H[Human review] --> R
-</pre></div></div>
-    </div>
-  </div>
-
-  <!-- 5 · LOOK UP WITH SOURCES -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">04 · The base, no AI</div><div class="h">Same email in, <span class="accent">same Excel out</span></div></div>
-      <div class="c2" style="grid-template-columns:1.25fr .75fr;align-items:start">
-        <div class="mmd h360"><pre class="mermaid">
-flowchart TD
-  I[Ferguson item ID] --> DB{Fetched live<br/>in the last 24 h?}
-  DB -->|yes| U[Reuse from product DB<br/>no browser needed]
-  DB -->|no| LP[Live ferguson.com page<br/>must show Item #id]
-  LP -->|blocked / timeout| CAT[Backup catalog]
-  LP -->|found| M[Merge: live wins,<br/>differences to Notes]
-  CAT --> M
-  U --> M
-  M --> SP[Spec sheet PDF<br/>fills blanks only]
-  SP --> OUT[Cells with source,<br/>confidence, URL]
-  CAT -->|not anywhere| NF[Not found +<br/>Ferguson alternatives]
+  A["📧<br/>Customer emails<br/>a list of products"] --> B["🔎<br/>We read the<br/>product numbers"]
+  B --> C["🌐<br/>We look each one up<br/>on ferguson.com"]
+  C --> D["✅<br/>The agent checks<br/>for mistakes"]
+  D -->|looks right| E["📤<br/>The filled RFQ is<br/>emailed back"]
+  D -->|something looks off| F["🧑<br/>A person checks<br/>it first"]
+  F --> E
 </pre></div>
-        <div class="card top"><ul>
-          <li><b>Live page counts only</b> if it shows <b>Item #id</b>: a redirect is not a match</li>
-          <li><b>Live wins</b> over the catalog; every difference goes to the <b>Notes</b> sheet</li>
-          <li><b>Spec PDFs</b> only fill blank cells, with page number and the text snippet</li>
-          <li><b>Chrome opens and closes itself</b>; if ferguson.com blocks, the catalog takes over</li>
-          <li><b>Email 1 = reference</b>, cell for cell: <b>6/6 rows, 105/105 sources</b></li>
-        </ul></div>
+      <div class="c3" style="margin-top:16px">
+        <div class="card top"><div class="t">📍 Every value has a source</div><div class="d">Each detail in the Excel says where it came from: the Ferguson website, the maker's spec sheet, or our product list. Nothing is made up.</div></div>
+        <div class="card top"><div class="t">🤷 Unknown stays blank</div><div class="d">If we can't find a detail, we leave it empty and say so. A blank is safer than a guess.</div></div>
+        <div class="card top"><div class="t">🙋 People stay in charge</div><div class="d">If something looks wrong, the RFQ waits for a person to check it before it goes to the customer.</div></div>
       </div>
     </div>
   </div>
 
-  <!-- 6 · RESULTS -->
+  <!-- 4 · WHAT THE AGENT CATCHES -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">05 · Results</div><div class="h">What our flow <span class="accent">produced</span></div></div>
-      <div class="c2" style="grid-template-columns:.9fr 1.1fr;align-items:start">
-        <div>
-          <div class="card top"><table class="tbl">
-            <tr><th>Email</th><th>Result</th></tr>
-            <tr><td><b>1</b> IDs in body</td><td>6/6 found · <b>matches the reference</b> (105/105 sources) · Ready</td></tr>
-            <tr><td><b>2</b> Excel attachment</td><td>8/8 live (225123 found online) · <b>"300 in" caught</b>, RFQ held · 10 units standardised offline</td></tr>
-            <tr><td><b>3</b> mixed + competitor</td><td>4/4 Ferguson found · 2 competitor parts identified on the web · 1 unknown code asked about</td></tr>
-            <tr><td><b>4</b> messy forward</td><td>#5106926 kept once · removed item 9677533 gets an alternative</td></tr>
-          </table>
-          <p class="small" style="margin-top:8px">115 automated tests pass on Linux, Windows and Python 3.10–3.14. Every Not found row stays on the RFQ: no ID is ever dropped.</p></div>
-          <div class="link">☁️ autorfq-9b7e0b.azurewebsites.net/rfq</div>
-        </div>
-        <div class="shot s420" data-img="rfq-output.png" data-label="Email 2 live: held for review"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 7 · THE QUALITY AGENT -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">06 · Our agentic arm</div><div class="h">RFQ Quality Agent: <span class="accent">flags, never overwrites</span></div></div>
-      <div class="mmd h300"><pre class="mermaid">
-flowchart LR
-  X[Filled RFQ] --> U[Units<br/>333.33 yds = 1000 ft]
-  U --> B[Blanks<br/>every empty cell]
-  B --> R[Rules<br/>wrong unit, mismatch,<br/>APWA colour]
-  R --> L[LLM check<br/>only cross-cell<br/>contradictions]
-  L --> V{Code verifies<br/>the claim}
-  V -->|holds| A[Advisory flag]
-  V -->|disproved| D[Dropped]
-  R --> S{Any high<br/>rule flag?}
-  S -->|yes| H[Needs review]
-  S -->|no| OK[Ready: reply sent]
-</pre></div>
-      <div class="c3" style="margin-top:14px">
-        <div class="card"><div class="tag">Excel marks</div><div class="d"><span class="pill miss">grey</span> missing (code) · <span class="pill code">amber</span> suspicious (code) · <span class="pill model">orange</span> suspicious (model). Each flagged cell gets a comment with the reason.</div></div>
-        <div class="card"><div class="tag">Summary sheet</div><div class="d">Fill rate per column and per product, every flag by code or by model, units converted, and whether the LLM check ran.</div></div>
-        <div class="card"><div class="tag">Human in the loop</div><div class="d">A high flag holds the RFQ. A reviewer keeps, edits or clears the value by keyboard; the approved file is rebuilt without the marks.</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 8 · WHAT OUR ARM ADDS -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">07 · What the agent adds</div><div class="h">Where the agent <span class="accent">made it better</span></div></div>
+      <div class="shead"><div class="eyebrow">03 · Our agent</div><div class="h">What the agent <span class="accent">catches</span></div></div>
       <div class="c2" style="grid-template-columns:1fr 1fr;align-items:start">
-        <div>
-          <div class="vs">
-            <div class="card before"><div class="tag">Without the agent</div><div class="d">1432040 goes out with Length <b>"300 in"</b>, although its description says <b>6 in. x 300 ft.</b> A unit converter would quietly make it <b>"25 ft"</b>: wrong either way.</div></div>
-            <div class="card after"><div class="tag" style="color:var(--green)">With the agent</div><div class="d">Flagged <span class="pill hold">Must check</span> with the reason, <b>value left unchanged</b>, RFQ <b>held</b> until a person decides. Email 1's <b>Water vs Sewer</b> tape is flagged too.</div></div>
-          </div>
-          <div class="card" style="margin-top:14px"><div class="t">⚖️ Agent or plain code?</div><table class="tbl">
-            <tr><td><span class="pill code">code</span></td><td>Units, blanks, ranges, wrong units, description and APWA-colour contradictions: exact checks, no model needed</td></tr>
-            <tr><td><span class="pill model">model</span></td><td>Cross-cell contradictions code can't see. Unchecked, it raised <b>15 flags on email 1</b>, mostly wrong; with code verifying each claim: <b>0</b></td></tr>
-          </table></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card"><div class="t">📏 A size that doesn't add up</div><div class="ex">
+            <span class="lbl p">Problem</span><span class="txt">A tape described as <b>300 ft</b> long was listed as <b>300 inches</b>.</span>
+            <span class="lbl f">Agent</span><span class="txt">Flags it, leaves it untouched and holds the RFQ until a person decides.</span></div></div>
+          <div class="card"><div class="t">🏷️ A label that contradicts itself</div><div class="ex">
+            <span class="lbl p">Problem</span><span class="txt">A green tape printed <b>"Sewer line"</b> was listed as a <b>water</b> tape.</span>
+            <span class="lbl f">Agent</span><span class="txt">Highlights the cell in the Excel with a note explaining why.</span></div></div>
+          <div class="card"><div class="t">🔁 A product from another brand</div><div class="ex">
+            <span class="lbl p">Problem</span><span class="txt">The customer asked for a <b>Mutual Industries</b> part Ferguson doesn't sell.</span>
+            <span class="lbl f">Agent</span><span class="txt">Looks it up online (red electric tape, 3 in x 1000 ft) and suggests the matching <b>Ferguson tape</b>.</span></div></div>
         </div>
-        <div class="shot s420" data-img="review.png" data-label="The review screen"></div>
+        <div class="shot s420" data-img="arm-result.png" data-label="The competitor part and its Ferguson match"></div>
       </div>
     </div>
   </div>
 
-  <!-- 9 · COMPETITOR CODES -->
+  <!-- 5 · RESULTS AND NEXT STEPS -->
   <div class="slide">
     <div class="inner">
-      <div class="shead"><div class="eyebrow">08 · Products Ferguson doesn't carry</div><div class="h">Competitor codes: <span class="accent">find the Ferguson equivalent</span></div></div>
-      <div class="c2" style="grid-template-columns:1.2fr .8fr;align-items:start">
-        <div>
-          <div class="mmd h300"><pre class="mermaid">
-flowchart LR
-  C[Mutual Industries<br/>17783-79-3000] --> W[Web search<br/>brand + code]
-  W --> K[Keep only pages<br/>naming this exact code]
-  K --> S[Specs with sources<br/>3 in x 333.33 yds = 1000 ft<br/>red, electric, non-detectable]
-  S --> M[Score Ferguson catalog<br/>APWA colour, width,<br/>length, tape type]
-  M --> F[9677539<br/>strong match]
-  F --> R[Reply: use 9677539?]
-  F --> X[(Cross-ref saved<br/>reviewer confirms)]
-</pre></div>
-          <div class="card" style="margin-top:12px"><table class="tbl">
-            <tr><th>In the email</th><th>The web says (with sources)</th><th>Ferguson match</th></tr>
-            <tr><td class="m">Mutual 17783-79-3000</td><td>Electric line, 3 in x 333.33 yds (1000 ft), red</td><td class="m">9677539 <span class="pill ok">strong</span></td></tr>
-            <tr><td class="m">Empire 31-024</td><td>Water line, detectable, 6 in x 1000 ft, 5 mil</td><td class="m">5106912 <span class="pill ok">strong</span></td></tr>
-            <tr><td class="m">MTX-4409-XQ</td><td>Nothing names it: the customer's own code</td><td>No guess: the reply asks</td></tr>
-          </table></div>
-        </div>
-        <div class="shot s420" data-img="arm-result.png" data-label="Specs with their sources"></div>
+      <div class="shead"><div class="eyebrow">04 · Results</div><div class="h">From days to <span class="accent">about a minute</span></div></div>
+      <div class="tiles">
+        <div class="card top"><div class="stat">~1 <span class="accent">min</span></div><div class="d">for a full RFQ, instead of 2 to 4 days</div></div>
+        <div class="card top"><div class="stat">100<span class="accent">%</span></div><div class="d">match with Ferguson's reference answer</div></div>
+        <div class="card top"><div class="stat">4 <span class="accent">of 4</span></div><div class="d">test emails handled, no product dropped</div></div>
+        <div class="card top"><div class="stat">Every <span class="accent">value</span></div><div class="d">comes with its source</div></div>
       </div>
+      <div class="c2" style="margin-top:16px">
+        <div class="card"><div class="t">💼 What changes for a sourcing manager</div><ul>
+          <li>Stops copying, starts checking: the RFQ arrives already filled</li>
+          <li>Only the few values that look wrong need attention</li>
+          <li>Works from the team inbox or a simple web page, anyone can use it</li>
+        </ul></div>
+        <div class="card"><div class="t">🚀 With another week</div><ul>
+          <li>Connect Ferguson's own product database directly</li>
+          <li>Let customers reply "add this item" and update the same RFQ</li>
+          <li>Share one product list across all teams and countries</li>
+        </ul></div>
+      </div>
+      <div class="banner"><span class="ic">☁️</span><div><b>Try it live:</b> autorfq-9b7e0b.azurewebsites.net/rfq · upload an email, download the RFQ</div></div>
     </div>
   </div>
 
-  <!-- 10 · RELIABLE BY DESIGN -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">09 · Built to run unattended</div><div class="h">Every email gets <span class="accent">exactly one reply</span></div></div>
-      <div class="c2" style="grid-template-columns:1.1fr .9fr;align-items:start">
-        <div class="mmd h330"><pre class="mermaid">
-stateDiagram-v2
-  direction LR
-  [*] --> processing
-  processing --> ready: no high flag
-  processing --> needs_review: high rule flag
-  processing --> failed: crash or timeout
-  ready --> sent: reply in thread
-  needs_review --> approved: reviewer decides
-  approved --> sent: SMTP accepted
-  failed --> fallback_sent: a person will follow up
-</pre></div>
-        <div class="card top"><ul>
-          <li><b>A bad input makes the RFQ smaller, never the run fail</b>: corrupt attachments, odd charsets, HTML-only emails</li>
-          <li>The bot <b>never loops</b> on a bad email: always marked read, a "person will follow up" reply on failure</li>
-          <li><b>Deterministic</b>: AI never changes a value or the status; offline runs repeat exactly</li>
-          <li><b>Keys only in .env</b> and Azure app settings; never in git or logs</li>
-          <li><b>One code base</b>: laptop (live Chrome) and Azure Functions (no browser)</li>
-        </ul></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 11 · LIMITS AND NEXT STEPS -->
-  <div class="slide">
-    <div class="inner">
-      <div class="shead"><div class="eyebrow">10 · Limits and next steps</div><div class="h">What we'd build <span class="accent">with another week</span></div></div>
-      <div class="c2">
-        <div class="card top"><div class="t">🚧 Known limits</div><ul>
-          <li>ferguson.com blocks headless browsers: live lookups need a visible Chrome on a laptop; Azure uses catalog + spec sheets</li>
-          <li>Spec-sheet reading is pattern based (thickness, ASTM, OSHA, material)</li>
-          <li>Azure Functions only keeps <b>/tmp</b>: runs and the product database reset on restart</li>
-          <li>Gmail needs an App Password (2-step verification) for the inbox bot</li>
-        </ul></div>
-        <div class="card top"><div class="t">🚀 Next steps</div><ul>
-          <li>Ferguson's internal <b>product-info API</b> as a first-class source</li>
-          <li>Product database on <b>Azure SQL</b>, shared by every team and country</li>
-          <li>Follow-up emails ("also add…") applied to the same RFQ as version 2</li>
-          <li>Gmail OAuth sign-in, PDF item lists, and reviewer accounts</li>
-        </ul></div>
-      </div>
-      <div class="banner"><span class="ic">📁</span><div><b>Our code:</b> github.com/Prajwaljb/AutoRFQ · <b>Live:</b> autorfq-9b7e0b.azurewebsites.net</div></div>
-    </div>
-  </div>
-
-  <!-- 12 · THANK YOU -->
+  <!-- 6 · THANK YOU -->
   <div class="slide cover">
     <div class="inner">
       <div class="cover__logos">
@@ -423,7 +277,7 @@ stateDiagram-v2
   go((parseInt(location.hash.slice(1))||1)-1);
   if (window.mermaid) {
     mermaid.initialize({startOnLoad:false, securityLevel:'loose', theme:'base', flowchart:{curve:'basis', htmlLabels:true},
-      themeVariables:{fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif', fontSize:'14px',
+      themeVariables:{fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif', fontSize:'16px',
         primaryColor:'#E8F7FA', primaryBorderColor:'#2C3F8E', primaryTextColor:'#1A2240', lineColor:'#2C3F8E',
         secondaryColor:'#EEF0FB', tertiaryColor:'#FAF7F1', clusterBkg:'#FAF7F1', clusterBorder:'#5BC4D2'}});
     mermaid.run({querySelector:'.mermaid'});
